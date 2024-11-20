@@ -25,4 +25,14 @@ public class AdvogadoService {
         advogado.setSenha(passwordEncoder.encode(advogado.getSenha()));
         return advogadoRepository.save(advogado);
     }
+
+    public Optional<Advogado> findByEmail(String email) {
+        return advogadoRepository.findByEmail(email);
+    }
+
+    public Optional<Advogado> findById(Long id) {
+        return advogadoRepository.findById(id);
+    }
+
+    // Outros métodos conforme necessário (e.g., atualizar, deletar Advogado)
 }

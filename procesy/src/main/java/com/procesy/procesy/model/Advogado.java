@@ -1,7 +1,9 @@
 package com.procesy.procesy.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.Data;
+import java.util.List;
 
 @Entity
 @Table(name = "advogado")
@@ -19,4 +21,8 @@ public class Advogado {
 
     @Column(name = "senha", nullable = false)
     private String senha;
+
+    @OneToMany(mappedBy = "advogado", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonBackReference
+    private List<Cliente> clientes;
 }
