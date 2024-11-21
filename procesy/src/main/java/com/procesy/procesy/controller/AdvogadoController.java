@@ -2,15 +2,17 @@ package com.procesy.procesy.controller;
 
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.model.Cliente;
+import com.procesy.procesy.model.Processo;
 import com.procesy.procesy.repository.AdvogadoRepository;
 import com.procesy.procesy.repository.ClienteRepository;
+import com.procesy.procesy.service.ProcessoService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/advogados")
@@ -22,7 +24,17 @@ public class AdvogadoController {
     @Autowired
     private ClienteRepository clienteRepository;
 
-    // Exemplo de endpoint para obter os Clientes do Advogado autenticado
+    @Autowired
+    private ProcessoService processoService;
+
+    // ---------------------- Endpoints para Clientes ----------------------
+
+    /**
+     * Endpoint para obter os Clientes do Advogado autenticado.
+     *
+     * @param authentication Objeto de autenticação do Spring Security.
+     * @return Lista de Clientes.
+     */
     @GetMapping("/meus-clientes")
     public ResponseEntity<List<Cliente>> getMeusClientes(Authentication authentication) {
         String email = authentication.getName();
@@ -32,9 +44,15 @@ public class AdvogadoController {
         return ResponseEntity.ok(clientes);
     }
 
-    // Criar um novo Cliente
+    /**
+     * Endpoint para criar um novo Cliente.
+     *
+     * @param cliente        Dados do Cliente.
+     * @param authentication Objeto de autenticação do Spring Security.
+     * @return Cliente criado.
+     */
     @PostMapping("/clientes")
-    public ResponseEntity<Cliente> criarCliente(@RequestBody Cliente cliente, Authentication authentication) {
+    public ResponseEntity<Cliente> criarCliente(@Valid @RequestBody Cliente cliente, Authentication authentication) {
         String email = authentication.getName();
         Advogado advogado = advogadoRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
@@ -43,9 +61,19 @@ public class AdvogadoController {
         return ResponseEntity.ok(salvo);
     }
 
-    // Atualizar um Cliente existente
+    /**
+     * Endpoint para atualizar um Cliente existente.
+     *
+     * @param id               ID do Cliente a ser atualizado.
+     * @param clienteAtualizado Dados atualizados do Cliente.
+     * @param authentication   Objeto de autenticação do Spring Security.
+     * @return Cliente atualizado.
+     */
     @PutMapping("/clientes/{id}")
-    public ResponseEntity<Cliente> atualizarCliente(@PathVariable Long id, @RequestBody Cliente clienteAtualizado, Authentication authentication) {
+    public ResponseEntity<Cliente> atualizarCliente(
+            @PathVariable Long id,
+            @Valid @RequestBody Cliente clienteAtualizado,
+            Authentication authentication) {
         String email = authentication.getName();
         Advogado advogado = advogadoRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
@@ -71,9 +99,17 @@ public class AdvogadoController {
         return ResponseEntity.ok(salvo);
     }
 
-    // Deletar um Cliente
+    /**
+     * Endpoint para deletar um Cliente.
+     *
+     * @param id             ID do Cliente a ser deletado.
+     * @param authentication Objeto de autenticação do Spring Security.
+     * @return Resposta vazia com status 204.
+     */
     @DeleteMapping("/clientes/{id}")
-    public ResponseEntity<Void> deletarCliente(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<Void> deletarCliente(
+            @PathVariable Long id,
+            Authentication authentication) {
         String email = authentication.getName();
         Advogado advogado = advogadoRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
@@ -86,6 +122,102 @@ public class AdvogadoController {
         }
 
         clienteRepository.delete(cliente);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ---------------------- Endpoints para Processos ----------------------
+
+    /**
+     * Endpoint para obter todos os Processos do Advogado autenticado.
+     *
+     * @param authentication Objeto de autenticação do Spring Security.
+     * @return Lista de Processos.
+     */
+    @GetMapping("/processos")
+    public ResponseEntity<List<Processo>> getMeusProcessos(Authentication authentication) {
+        String email = authentication.getName();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+        List<Processo> processos = processoService.getProcessosByAdvogadoId(advogado.getId());
+        return ResponseEntity.ok(processos);
+    }
+
+    /**
+     * Endpoint para criar um novo Processo.
+     *
+     * @param processo        Dados do Processo.
+     * @param clienteId       ID do Cliente ao qual o Processo será associado.
+     * @param authentication  Objeto de autenticação do Spring Security.
+     * @return Processo criado.
+     */
+    @PostMapping("/processos")
+    public ResponseEntity<Processo> criarProcesso(
+            @Valid @RequestBody Processo processo,
+            @RequestParam Long clienteId,
+            Authentication authentication) {
+        String email = authentication.getName();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+        Processo salvo = processoService.criarProcesso(processo, clienteId, advogado.getId());
+        return ResponseEntity.ok(salvo);
+    }
+
+    /**
+     * Endpoint para obter um Processo específico.
+     *
+     * @param id               ID do Processo.
+     * @param authentication   Objeto de autenticação do Spring Security.
+     * @return Processo encontrado.
+     */
+    @GetMapping("/processos/{id}")
+    public ResponseEntity<Processo> getProcessoById(
+            @PathVariable Long id,
+            Authentication authentication) {
+        String email = authentication.getName();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+
+        Processo processo = processoService.getProcessoById(id, advogado.getId());
+        return ResponseEntity.ok(processo);
+    }
+
+    /**
+     * Endpoint para atualizar um Processo existente.
+     *
+     * @param id                ID do Processo a ser atualizado.
+     * @param processoAtualizado Dados atualizados do Processo.
+     * @param authentication    Objeto de autenticação do Spring Security.
+     * @return Processo atualizado.
+     */
+    @PutMapping("/processos/{id}")
+    public ResponseEntity<Processo> atualizarProcesso(
+            @PathVariable Long id,
+            @Valid @RequestBody Processo processoAtualizado,
+            Authentication authentication) {
+        String email = authentication.getName();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+
+        Processo processo = processoService.atualizarProcesso(id, processoAtualizado, advogado.getId());
+        return ResponseEntity.ok(processo);
+    }
+
+    /**
+     * Endpoint para deletar um Processo.
+     *
+     * @param id               ID do Processo a ser deletado.
+     * @param authentication   Objeto de autenticação do Spring Security.
+     * @return Resposta vazia com status 204.
+     */
+    @DeleteMapping("/processos/{id}")
+    public ResponseEntity<Void> deletarProcesso(
+            @PathVariable Long id,
+            Authentication authentication) {
+        String email = authentication.getName();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+
+        processoService.deletarProcesso(id, advogado.getId());
         return ResponseEntity.noContent().build();
     }
 }

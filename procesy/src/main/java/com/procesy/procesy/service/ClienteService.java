@@ -67,7 +67,7 @@ public class ClienteService {
         cliente.setNome(clienteAtualizado.getNome());
         cliente.setGenero(clienteAtualizado.getGenero());
         cliente.setEstadoCivil(clienteAtualizado.getEstadoCivil());
-        cliente.setCPF_CNPJ(clienteAtualizado.getCPF_CNPJ());
+        cliente.setCpf_cnpj(clienteAtualizado.getCpf_cnpj());
         cliente.setNaturalidade(clienteAtualizado.getNaturalidade());
         cliente.setDataNascimento(clienteAtualizado.getDataNascimento());
         cliente.setTelefone(clienteAtualizado.getTelefone());

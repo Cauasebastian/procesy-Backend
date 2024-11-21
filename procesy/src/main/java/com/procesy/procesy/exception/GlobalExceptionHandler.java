@@ -1,3 +1,4 @@
+// GlobalExceptionHandler.java
 package com.procesy.procesy.exception;
 
 import com.mysql.cj.jdbc.exceptions.MysqlDataTruncation;
@@ -22,6 +23,16 @@ public class GlobalExceptionHandler {
             }
         }
         return new ResponseEntity<>(message, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<String> handleAccessDeniedException(AccessDeniedException ex) {
+        return new ResponseEntity<>("Acesso negado: " + ex.getMessage(), HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<String> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        return new ResponseEntity<>("Recurso não encontrado: " + ex.getMessage(), HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
