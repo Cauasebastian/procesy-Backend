@@ -51,17 +51,14 @@ public class ProcessoService {
      */
     @Transactional
     public Processo criarProcesso(Processo processo, Long advogadoId, Long clienteId) {
-        // Busca o Cliente e verifica se pertence ao Advogado
+        // Verifica o cliente e se pertence ao advogado
         Cliente cliente = clienteService.getClienteById(clienteId, advogadoId);
 
-        // Verifica se o Cliente pertence ao Advogado
-        if (!cliente.getAdvogado().getId().equals(advogadoId)) {
-            throw new AccessDeniedException("Acesso negado: Cliente não pertence ao Advogado");
-        }
-
+        // Configura o cliente no processo antes de salvar
         processo.setCliente(cliente);
         return processoRepository.save(processo);
     }
+
 
     /**
      * Retorna um Processo específico, garantindo que ele pertença ao Advogado.

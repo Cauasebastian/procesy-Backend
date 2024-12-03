@@ -83,6 +83,8 @@ public class AuthControllerTest {
                 .andExpect(content().string("Falha na autenticação: Falha na autenticação"));
     }
 
+
+    // Teste de Registro com Sucesso
     @Test
     public void testRegisterSuccess() throws Exception {
         String email = "new@domain.com";
@@ -121,7 +123,7 @@ public class AuthControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(content().string("Email já está em uso."));
     }
-    // Teste de E-mail Inválido no Registro
+    // Teste de Registro com Conflito de E-mail
     @Test
     public void testRegisterInvalidEmail() throws Exception {
         String email = "invalid-email"; // E-mail inválido

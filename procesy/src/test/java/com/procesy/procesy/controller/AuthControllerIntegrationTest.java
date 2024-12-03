@@ -58,13 +58,14 @@ public class AuthControllerIntegrationTest {
         Advogado advogado = new Advogado();
         advogado.setEmail("new@domain.com");
         advogado.setNome("John Doe");
+        advogado.setSenha("password123");
 
         when(advogadoService.existsByEmail(advogado.getEmail())).thenReturn(false);
         when(advogadoService.salvarAdvogado(any(Advogado.class))).thenReturn(advogado);
 
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\": \"new@domain.com\", \"nome\": \"John Doe\"}"))
+                        .content("{\"email\": \"new@domain.com\", \"nome\": \"John Doe\", \"senha\": \"password123\"}") )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("new@domain.com"))
                 .andExpect(jsonPath("$.nome").value("John Doe"));

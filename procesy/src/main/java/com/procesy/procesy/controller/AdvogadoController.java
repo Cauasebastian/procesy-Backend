@@ -160,18 +160,20 @@ public class AdvogadoController {
     @PostMapping("/processos")
     public ResponseEntity<Processo> criarProcesso(@RequestBody Processo processo, @RequestParam Long clienteId, Authentication authentication) {
         String email = authentication.getName();
-        Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
-        if (advogadoOpt.isEmpty()) {
-            return ResponseEntity.status(404).body(null);
-        }
-        Advogado advogado = advogadoOpt.get();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+
         try {
-            Processo savedProcesso = processoService.criarProcesso(processo, clienteId, advogado.getId());
+            Processo savedProcesso = processoService.criarProcesso(processo, advogado.getId(), clienteId);
             return ResponseEntity.ok(savedProcesso);
         } catch (Exception e) {
+            System.err.println("Erro ao criar processo: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(500).body(null);
         }
     }
+
+
 
     /**
      * Endpoint para obter um Processo específico.

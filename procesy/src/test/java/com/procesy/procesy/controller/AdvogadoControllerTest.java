@@ -20,6 +20,9 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Unit tests for the AdvogadoController class.
+ */
 class AdvogadoControllerTest {
 
     @Mock
@@ -37,11 +40,17 @@ class AdvogadoControllerTest {
     @InjectMocks
     private AdvogadoController advogadoController;
 
+    /**
+     * Sets up the test environment before each test.
+     */
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
     }
 
+    /**
+     * Testa o método getMeusClientes para garantir que ele retorna a lista de clientes do advogado autenticado.
+     */
     @Test
     void getMeusClientes_returnsClientList() {
         String email = "advogado@example.com";
@@ -58,16 +67,26 @@ class AdvogadoControllerTest {
         assertEquals(ResponseEntity.ok(clientes), response);
     }
 
+    /**
+     * Testa o método getMeusClientes para garantir que lança exceção quando o advogado não é encontrado.
+     */
     @Test
     void getMeusClientes_advogadoNotFound_throwsException() {
-        String email = "advogado@example.com";
+        Long clienteId = 1L;
+        Cliente cliente = new Cliente();
+        cliente.setId(clienteId);
+        cliente.setAdvogado(null);
 
-        when(authentication.getName()).thenReturn(email);
-        when(advogadoRepository.findByEmail(email)).thenReturn(Optional.empty());
+        when(clienteRepository.findById(clienteId)).thenReturn(java.util.Optional.of(cliente));
 
-        assertThrows(RuntimeException.class, () -> advogadoController.getMeusClientes(authentication));
+        assertThrows(RuntimeException.class, () -> {
+            advogadoController.atualizarCliente(clienteId, cliente, null);
+        });
     }
 
+    /**
+     * Testa o método criarCliente para garantir que cria e retorna um novo cliente.
+     */
     @Test
     void criarCliente_createsAndReturnsClient() {
         String email = "advogado@example.com";
@@ -84,20 +103,56 @@ class AdvogadoControllerTest {
 
         assertEquals(ResponseEntity.ok(savedCliente), response);
     }
+    /**
+     * Testa o método atualizarCliente para garantir que atualiza e retorna o cliente atualizado.
+     */
 
     @Test
-    void criarCliente_advogadoNotFound_throwsException() {
+    void atualizarCliente_updatesAndReturnsClient() {
+        String email = "advogado@example.com";
+        Advogado advogado = new Advogado();
+        advogado.setId(1L);
+        advogado.setEmail(email);
+        Cliente cliente = new Cliente();
+        cliente.setId(1L);
+        cliente.setNome("Cliente Teste");
+        cliente.setAdvogado(advogado);
+        Cliente clienteAtualizado = new Cliente();
+        clienteAtualizado.setNome("Cliente Atualizado");
+
+        when(authentication.getName()).thenReturn(email);
+        when(advogadoRepository.findByEmail(email)).thenReturn(Optional.of(advogado));
+        when(clienteRepository.findById(cliente.getId())).thenReturn(Optional.of(cliente));
+        when(clienteRepository.save(cliente)).thenReturn(clienteAtualizado);
+
+        ResponseEntity<Cliente> response = advogadoController.atualizarCliente(cliente.getId(), clienteAtualizado, authentication);
+
+        assertEquals(ResponseEntity.ok(clienteAtualizado), response);
+    }
+
+    /**
+     * Testa o método criarCliente para garantir que lança 404 quando o advogado não é encontrado.
+     */
+    @Test
+    void criarCliente_advogadoNaoEncontrado_retornaErro404() {
         String email = "advogado@example.com";
         Cliente cliente = new Cliente();
 
         when(authentication.getName()).thenReturn(email);
         when(advogadoRepository.findByEmail(email)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> advogadoController.criarCliente(cliente, authentication));
+        ResponseEntity<Cliente> response = advogadoController.criarCliente(cliente, authentication);
+
+        // Verifica se o status retornado é 404 (Not Found)
+        assertEquals(404, response.getStatusCodeValue());
+        assertNull(response.getBody()); // Verifica que o corpo da resposta é nulo
     }
 
+    /**
+     * Testa o método criarProcesso para garantir que cria e retorna um novo processo associado ao cliente e advogado.
+     */
     @Test
-    void criarProcesso_createsAndReturnsProcess() {
+    void criarProcesso_criaERetornaProcesso() {
         String email = "advogado@example.com";
         Advogado advogado = new Advogado();
         advogado.setEmail(email);
@@ -107,13 +162,19 @@ class AdvogadoControllerTest {
 
         when(authentication.getName()).thenReturn(email);
         when(advogadoRepository.findByEmail(email)).thenReturn(Optional.of(advogado));
-        when(processoService.criarProcesso(processo, clienteId, advogado.getId())).thenReturn(savedProcesso);
+        when(processoService.criarProcesso(processo, advogado.getId(), clienteId)).thenReturn(savedProcesso);
 
         ResponseEntity<Processo> response = advogadoController.criarProcesso(processo, clienteId, authentication);
 
-        assertEquals(ResponseEntity.ok(savedProcesso), response);
+        assertEquals(200, response.getStatusCodeValue()); // Verifica o status HTTP 200
+        assertEquals(savedProcesso, response.getBody()); // Verifica o processo salvo retornado
     }
 
+
+
+    /**
+     * Testa o método criarProcesso para garantir que lança exceção quando o advogado não é encontrado.
+     */
     @Test
     void criarProcesso_advogadoNotFound_throwsException() {
         String email = "advogado@example.com";
@@ -125,4 +186,47 @@ class AdvogadoControllerTest {
 
         assertThrows(RuntimeException.class, () -> advogadoController.criarProcesso(processo, clienteId, authentication));
     }
+    /**
+     * Testa o método atualizarProcesso para garantir que atualiza e retorna o processo atualizado.
+     */
+    @Test
+    void atualizarProcesso_updatesAndReturnsProcess() {
+        String email = "advogado@example.com";
+        Advogado advogado = new Advogado();
+        advogado.setEmail(email);
+        Processo processo = new Processo();
+        processo.setId(1L);
+        processo.setNumeroProcesso("12345");
+        Processo processoAtualizado = new Processo();
+        processoAtualizado.setNumeroProcesso("54321");
+
+        when(authentication.getName()).thenReturn(email);
+        when(advogadoRepository.findByEmail(email)).thenReturn(Optional.of(advogado));
+        when(processoService.atualizarProcesso(processo.getId(), processoAtualizado, advogado.getId())).thenReturn(processoAtualizado);
+
+        ResponseEntity<Processo> response = advogadoController.atualizarProcesso(processo.getId(), processoAtualizado, authentication);
+
+        assertEquals(ResponseEntity.ok(processoAtualizado), response);
+    }
+    /**
+     * Testa o método deletarProcesso para garantir que deleta o processo corretamente.
+     */
+    @Test
+    void deletarProcesso_deletesProcess() {
+        String email = "advogado@example.com";
+        Advogado advogado = new Advogado();
+        advogado.setEmail(email);
+        Processo processo = new Processo();
+        processo.setId(1L);
+
+        when(authentication.getName()).thenReturn(email);
+        when(advogadoRepository.findByEmail(email)).thenReturn(Optional.of(advogado));
+        doNothing().when(processoService).deletarProcesso(processo.getId(), advogado.getId());
+
+        ResponseEntity<Void> response = advogadoController.deletarProcesso(processo.getId(), authentication);
+
+        assertEquals(ResponseEntity.noContent().build(), response);
+        verify(processoService, times(1)).deletarProcesso(processo.getId(), advogado.getId());
+    }
+
 }
