@@ -3,14 +3,15 @@ package com.procesy.procesy.controller;
 import com.procesy.procesy.security.JwtUtil;
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.service.AdvogadoService;
-
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,7 +29,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -44,10 +45,21 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Advogado advogado) {
+    public ResponseEntity<?> register(@Valid @RequestBody Advogado advogado, BindingResult result) {
         if (advogadoService.existsByEmail(advogado.getEmail())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Email já está em uso.");
         }
+        if (result.hasErrors()) {
+            for (FieldError error : result.getFieldErrors()) {
+                if (error.getField().equals("email")) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email inválido");
+                } else if (error.getField().equals("senha")) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("A senha é obrigatória");
+                }
+            }
+
+        }
+
         Advogado savedAdvogado = advogadoService.salvarAdvogado(advogado);
         return ResponseEntity.ok(savedAdvogado);
     }

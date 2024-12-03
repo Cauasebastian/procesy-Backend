@@ -13,9 +13,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
-@RequestMapping("/advogados")
+@RequestMapping("/advogado")
 public class AdvogadoController {
 
     @Autowired
@@ -35,11 +36,14 @@ public class AdvogadoController {
      * @param authentication Objeto de autenticação do Spring Security.
      * @return Lista de Clientes.
      */
-    @GetMapping("/meus-clientes")
+    @GetMapping("/clientes")
     public ResponseEntity<List<Cliente>> getMeusClientes(Authentication authentication) {
         String email = authentication.getName();
-        Advogado advogado = advogadoRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+        Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
+        if (advogadoOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(null);
+        }
+        Advogado advogado = advogadoOpt.get();
         List<Cliente> clientes = clienteRepository.findByAdvogado(advogado);
         return ResponseEntity.ok(clientes);
     }
@@ -52,13 +56,16 @@ public class AdvogadoController {
      * @return Cliente criado.
      */
     @PostMapping("/clientes")
-    public ResponseEntity<Cliente> criarCliente(@Valid @RequestBody Cliente cliente, Authentication authentication) {
+    public ResponseEntity<Cliente> criarCliente(@RequestBody Cliente cliente, Authentication authentication) {
         String email = authentication.getName();
-        Advogado advogado = advogadoRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+        Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
+        if (advogadoOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(null);
+        }
+        Advogado advogado = advogadoOpt.get();
         cliente.setAdvogado(advogado);
-        Cliente salvo = clienteRepository.save(cliente);
-        return ResponseEntity.ok(salvo);
+        Cliente savedCliente = clienteRepository.save(cliente);
+        return ResponseEntity.ok(savedCliente);
     }
 
     /**
@@ -151,15 +158,19 @@ public class AdvogadoController {
      * @return Processo criado.
      */
     @PostMapping("/processos")
-    public ResponseEntity<Processo> criarProcesso(
-            @Valid @RequestBody Processo processo,
-            @RequestParam Long clienteId,
-            Authentication authentication) {
+    public ResponseEntity<Processo> criarProcesso(@RequestBody Processo processo, @RequestParam Long clienteId, Authentication authentication) {
         String email = authentication.getName();
-        Advogado advogado = advogadoRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
-        Processo salvo = processoService.criarProcesso(processo, clienteId, advogado.getId());
-        return ResponseEntity.ok(salvo);
+        Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
+        if (advogadoOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(null);
+        }
+        Advogado advogado = advogadoOpt.get();
+        try {
+            Processo savedProcesso = processoService.criarProcesso(processo, clienteId, advogado.getId());
+            return ResponseEntity.ok(savedProcesso);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(null);
+        }
     }
 
     /**

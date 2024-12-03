@@ -41,4 +41,11 @@ public class Cliente {
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
     private List<Processo> processos;
+
+    public Cliente(long l, String s) {
+        this.id = l;
+        this.nome = s;
+    }
+    public Cliente() {
+    }
 }

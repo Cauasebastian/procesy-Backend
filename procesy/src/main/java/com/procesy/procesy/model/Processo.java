@@ -53,4 +53,14 @@ public class Processo {
     @NotBlank(message = "Ação é obrigatória")
     @Column(name = "acao")
     private String acao;
+
+    public Processo(long l, String s, Advogado advogado) {
+        this.id = l;
+        this.numeroProcesso = s;
+    }
+    public Processo() {
+    }
+
+    public Processo(Long o, String novoProcesso, Advogado advogado) {
+    }
 }
