@@ -1,7 +1,10 @@
 package com.procesy.procesy.model.documentos;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
+import lombok.Data;
 
+@Data
 @Entity
 @Table(name = "peticao_inicial")
 public class PeticaoInicial {
@@ -14,24 +17,16 @@ public class PeticaoInicial {
     @Column(name = "arquivo", nullable = false)
     private byte[] arquivo;
 
-    // Construtores
+    // Relação com DocumentoProcesso
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "documento_processo_id", nullable = false)
+    @JsonBackReference("documentoProcesso-peticoesIniciais")
+    private DocumentoProcesso documentoProcesso;
+
     public PeticaoInicial() {
     }
 
     public PeticaoInicial(byte[] arquivo) {
-        this.arquivo = arquivo;
-    }
-
-    // Getters e Setters
-    public Long getId() {
-        return id;
-    }
-
-    public byte[] getArquivo() {
-        return arquivo;
-    }
-
-    public void setArquivo(byte[] arquivo) {
         this.arquivo = arquivo;
     }
 }

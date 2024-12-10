@@ -1,9 +1,15 @@
 package com.procesy.procesy.model.documentos;
 
-import com.procesy.procesy.model.DocumentoComplementar;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.procesy.procesy.model.Processo;
 import jakarta.persistence.*;
+import lombok.Data;
+
+import java.util.ArrayList;
 import java.util.List;
 
+@Data
 @Entity
 @Table(name = "documento_processo")
 public class DocumentoProcesso {
@@ -12,58 +18,30 @@ public class DocumentoProcesso {
         @GeneratedValue(strategy = GenerationType.IDENTITY)
         private Long id;
 
+        // Relação com Processo
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "processo_id", nullable = false)
+        @JsonBackReference("processo-documentoProcessos")
+        private Processo processo;
+
         // Relação com Procuracao
-        @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-        @JoinColumn(name = "documento_processo_id")
-        private List<Procuracao> procuracoes;
+        @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
+        @JsonManagedReference("documentoProcesso-procuracoes")
+        private List<Procuracao> procuracoes = new ArrayList<>();
 
         // Relação com PeticaoInicial
-        @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-        @JoinColumn(name = "documento_processo_id")
-        private List<PeticaoInicial> peticoesIniciais;
+        @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
+        @JsonManagedReference("documentoProcesso-peticoesIniciais")
+        private List<PeticaoInicial> peticoesIniciais = new ArrayList<>();
 
         // Relação com DocumentosComplementares
-        @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-        @JoinColumn(name = "documento_processo_id")
-        private List<DocumentoComplementar> documentosComplementares;
+        @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
+        @JsonManagedReference("documentoProcesso-documentosComplementares")
+        private List<DocumentoComplementar> documentosComplementares = new ArrayList<>();
 
-        // Construtores
         public DocumentoProcesso() {
+
         }
 
-        public DocumentoProcesso(List<Procuracao> procuracoes, List<PeticaoInicial> peticoesIniciais,
-                                 List<DocumentoComplementar> documentosComplementares) {
-                this.procuracoes = procuracoes;
-                this.peticoesIniciais = peticoesIniciais;
-                this.documentosComplementares = documentosComplementares;
-        }
-
-        // Getters e Setters
-        public Long getId() {
-                return id;
-        }
-
-        public List<Procuracao> getProcuracoes() {
-                return procuracoes;
-        }
-
-        public void setProcuracoes(List<Procuracao> procuracoes) {
-                this.procuracoes = procuracoes;
-        }
-
-        public List<PeticaoInicial> getPeticoesIniciais() {
-                return peticoesIniciais;
-        }
-
-        public void setPeticoesIniciais(List<PeticaoInicial> peticoesIniciais) {
-                this.peticoesIniciais = peticoesIniciais;
-        }
-
-        public List<DocumentoComplementar> getDocumentosComplementares() {
-                return documentosComplementares;
-        }
-
-        public void setDocumentosComplementares(List<DocumentoComplementar> documentosComplementares) {
-                this.documentosComplementares = documentosComplementares;
-        }
+        // Outros métodos, se necessário
 }

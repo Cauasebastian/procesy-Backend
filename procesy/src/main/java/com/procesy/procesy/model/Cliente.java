@@ -4,17 +4,14 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.List;
 
-@Getter
-@Setter
+@Data
 @Entity
 @Table(name = "cliente")
-@Data
 public class Cliente {
 
     @Id
@@ -33,19 +30,20 @@ public class Cliente {
     private String telefone;
     private String email;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "advogado_id", nullable = false)
-    @JsonBackReference
+    @JsonBackReference("advogado-clientes")
     private Advogado advogado;
 
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
-    private List<Processo> processos;
+    @JsonManagedReference("cliente-processos")
+    private List<Processo> processos = new ArrayList<>();
 
     public Cliente(long l, String s) {
         this.id = l;
         this.nome = s;
     }
+
     public Cliente() {
     }
 }

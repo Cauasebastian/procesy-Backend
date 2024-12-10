@@ -1,15 +1,16 @@
 package com.procesy.procesy.model;
 
 import jakarta.persistence.*;
-import org.springframework.data.annotation.Id;
+import lombok.Data;
+
+import java.util.ArrayList;
 import java.util.List;
 
+@Data
 @Entity
 @Table(name = "documento_cliente")
-@lombok.Data
 public class DocumentoCliente {
 
-    @jakarta.persistence.Id
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,7 +29,7 @@ public class DocumentoCliente {
             joinColumns = @JoinColumn(name = "documento_cliente_id")
     )
     @Column(name = "cpf")
-    private List<byte[]> cpfsTerceiros;
+    private List<byte[]> cpfsTerceiros = new ArrayList<>();
 
     @ElementCollection
     @CollectionTable(
@@ -36,5 +37,5 @@ public class DocumentoCliente {
             joinColumns = @JoinColumn(name = "documento_cliente_id")
     )
     @Column(name = "rg")
-    private List<byte[]> rgsTerceiros;
+    private List<byte[]> rgsTerceiros = new ArrayList<>();
 }

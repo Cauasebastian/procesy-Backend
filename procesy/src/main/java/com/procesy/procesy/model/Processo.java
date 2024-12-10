@@ -1,18 +1,18 @@
 package com.procesy.procesy.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PastOrPresent;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
-@Getter
-@Setter
 @Data
 @Entity
 @Table(name = "processo")
@@ -28,7 +28,7 @@ public class Processo {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cliente_id", nullable = false)
-    @JsonBackReference
+    @JsonBackReference("cliente-processos")
     private Cliente cliente;
 
     @PastOrPresent(message = "Data de início deve estar no passado ou presente")
@@ -54,13 +54,13 @@ public class Processo {
     @Column(name = "acao")
     private String acao;
 
-    public Processo(long l, String s, Advogado advogado) {
-        this.id = l;
-        this.numeroProcesso = s;
-    }
+    @OneToMany(mappedBy = "processo", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference("processo-documentoProcessos")
+    private List<DocumentoProcesso> documentoProcessos = new ArrayList<>();
+
     public Processo() {
+
     }
 
-    public Processo(Long o, String novoProcesso, Advogado advogado) {
-    }
+    // Outros métodos, se necessário
 }

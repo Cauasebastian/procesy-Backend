@@ -1,15 +1,17 @@
 package com.procesy.procesy.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
+
+import java.util.ArrayList;
 import java.util.List;
 
+@Data
 @Entity
 @Table(name = "advogado")
-@Data
 public class Advogado {
 
     @Id
@@ -30,6 +32,6 @@ public class Advogado {
     private String senha;
 
     @OneToMany(mappedBy = "advogado", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonBackReference
-    private List<Cliente> clientes;
+    @JsonManagedReference("advogado-clientes")
+    private List<Cliente> clientes = new ArrayList<>();
 }
