@@ -54,8 +54,8 @@ public class Processo {
     @Column(name = "acao")
     private String acao;
 
-    @OneToMany(mappedBy = "processo", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<DocumentoProcesso> documentoProcessos = new ArrayList<>();
+    @OneToOne(mappedBy = "processo", cascade = CascadeType.ALL, orphanRemoval = true)
+    private DocumentoProcesso documentoProcesso;
 
     public Processo() {}
 

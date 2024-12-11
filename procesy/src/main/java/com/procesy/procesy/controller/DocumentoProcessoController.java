@@ -1,5 +1,6 @@
 package com.procesy.procesy.controller;
 
+import com.procesy.procesy.dto.DocumentoProcessoDTO;
 import com.procesy.procesy.model.documentos.DocumentoComplementar;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import com.procesy.procesy.model.documentos.PeticaoInicial;
@@ -58,13 +59,13 @@ public class DocumentoProcessoController {
      * Endpoint para listar os documentos de um Processo específico.
      *
      * @param processoId ID do Processo.
-     * @return DocumentoProcesso contendo listas de documentos.
+     * @return DocumentoProcessoDTO contendo listas de IDs e metadados dos documentos.
      */
     @GetMapping("/processo/{processoId}")
     public ResponseEntity<?> listarDocumentosDoProcesso(@PathVariable Long processoId) {
         try {
-            DocumentoProcesso documentoProcesso = documentoProcessoService.getDocumentosDoProcesso(processoId);
-            return ResponseEntity.ok(documentoProcesso);
+            DocumentoProcessoDTO documentoProcessoDTO = documentoProcessoService.getDocumentosDoProcessoDTO(processoId);
+            return ResponseEntity.ok(documentoProcessoDTO);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         }

@@ -11,10 +11,11 @@ import java.util.Optional;
 
 @Repository
 public interface DocumentoProcessoRepository extends JpaRepository<DocumentoProcesso, Long> {
-    @Query("SELECT dp FROM DocumentoProcesso dp " +
+    @Query("SELECT DISTINCT dp FROM DocumentoProcesso dp " +
             "LEFT JOIN FETCH dp.procuracoes " +
             "LEFT JOIN FETCH dp.peticoesIniciais " +
             "LEFT JOIN FETCH dp.documentosComplementares " +
             "WHERE dp.processo.id = :processoId")
     Optional<DocumentoProcesso> findByProcessoIdWithDocuments(@Param("processoId") Long processoId);
+
 }

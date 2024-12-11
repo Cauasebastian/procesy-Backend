@@ -1,5 +1,9 @@
 package com.procesy.procesy.service;
 
+import com.procesy.procesy.dto.DocumentoComplementarDTO;
+import com.procesy.procesy.dto.DocumentoProcessoDTO;
+import com.procesy.procesy.dto.PeticaoInicialDTO;
+import com.procesy.procesy.dto.ProcuracaoDTO;
 import com.procesy.procesy.model.Processo;
 import com.procesy.procesy.model.documentos.DocumentoComplementar;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
@@ -18,6 +22,8 @@ import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class DocumentoProcessoService {
@@ -38,7 +44,7 @@ public class DocumentoProcessoService {
     private DocumentoComplementarRepository documentoComplementarRepository;
 
     /**
-     * Adiciona documentos a um Processo existente.
+     * Adiciona ou atualiza documentos a um Processo existente.
      *
      * @param processoId                     ID do Processo ao qual os documentos serão adicionados.
      * @param procuracoesFiles               Lista de arquivos de procuração.
@@ -56,9 +62,19 @@ public class DocumentoProcessoService {
         Processo processo = processoRepository.findById(processoId)
                 .orElseThrow(() -> new IllegalArgumentException("Processo com ID " + processoId + " não encontrado."));
 
-        // Criar DocumentoProcesso
-        DocumentoProcesso documentoProcesso = new DocumentoProcesso();
-        documentoProcesso.setProcesso(processo);
+        DocumentoProcesso documentoProcesso = processo.getDocumentoProcesso();
+
+        if (documentoProcesso == null) {
+            // Se não existe DocumentoProcesso, cria um novo
+            documentoProcesso = new DocumentoProcesso();
+            documentoProcesso.setProcesso(processo);
+            processo.setDocumentoProcesso(documentoProcesso);
+        }
+
+        // Limpar documentos existentes se necessário (opcional)
+        documentoProcesso.getProcuracoes().clear();
+        documentoProcesso.getPeticoesIniciais().clear();
+        documentoProcesso.getDocumentosComplementares().clear();
 
         // Processar Procurações
         for (MultipartFile file : procuracoesFiles) {
@@ -81,25 +97,57 @@ public class DocumentoProcessoService {
             documentoProcesso.getDocumentosComplementares().add(documentoComplementar);
         }
 
-        // Vincular DocumentoProcesso ao Processo
-        processo.getDocumentoProcessos().add(documentoProcesso);
-
         // Salvar DocumentoProcesso (CascadeType.ALL cuidará de salvar DocumentoProcesso e seus documentos)
         documentoProcessoRepository.save(documentoProcesso);
     }
 
-
     /**
-     * Recupera todos os documentos de um Processo específico.
+     * Recupera todos os documentos de um Processo específico como DTO.
      *
      * @param processoId ID do Processo.
-     * @return DocumentoProcesso contendo listas de documentos.
+     * @return DocumentoProcessoDTO contendo listas de IDs e metadados dos documentos.
      * @throws IllegalArgumentException Se o Processo com o ID fornecido não for encontrado.
      */
     @Transactional
-    public DocumentoProcesso getDocumentosDoProcesso(Long processoId) {
-        return documentoProcessoRepository.findByProcessoIdWithDocuments(processoId)
+    public DocumentoProcessoDTO getDocumentosDoProcessoDTO(Long processoId) {
+        DocumentoProcesso documentoProcesso = documentoProcessoRepository.findByProcessoIdWithDocuments(processoId)
                 .orElseThrow(() -> new IllegalArgumentException("Nenhum DocumentoProcesso encontrado para o Processo com ID " + processoId));
+
+        DocumentoProcessoDTO dto = new DocumentoProcessoDTO();
+        dto.setId(documentoProcesso.getId());
+        dto.setProcessoId(documentoProcesso.getProcesso().getId());
+
+        // Mapear Procuracoes
+        Set<ProcuracaoDTO> procuracoesDTO = documentoProcesso.getProcuracoes().stream().map(proc -> {
+            ProcuracaoDTO pDto = new ProcuracaoDTO();
+            pDto.setId(proc.getId());
+            pDto.setNomeArquivo(proc.getNomeArquivo());
+            pDto.setTipoArquivo(proc.getTipoArquivo());
+            return pDto;
+        }).collect(Collectors.toSet());
+        dto.setProcuracoes(procuracoesDTO);
+
+        // Mapear Peticoes Iniciais
+        Set<PeticaoInicialDTO> peticoesDTO = documentoProcesso.getPeticoesIniciais().stream().map(pet -> {
+            PeticaoInicialDTO piDto = new PeticaoInicialDTO();
+            piDto.setId(pet.getId());
+            piDto.setNomeArquivo(pet.getNomeArquivo());
+            piDto.setTipoArquivo(pet.getTipoArquivo());
+            return piDto;
+        }).collect(Collectors.toSet());
+        dto.setPeticoesIniciais(peticoesDTO);
+
+        // Mapear Documentos Complementares
+        Set<DocumentoComplementarDTO> documentosDTO = documentoProcesso.getDocumentosComplementares().stream().map(dc -> {
+            DocumentoComplementarDTO dcDto = new DocumentoComplementarDTO();
+            dcDto.setId(dc.getId());
+            dcDto.setNomeArquivo(dc.getNomeArquivo());
+            dcDto.setTipoArquivo(dc.getTipoArquivo());
+            return dcDto;
+        }).collect(Collectors.toSet());
+        dto.setDocumentosComplementares(documentosDTO);
+
+        return dto;
     }
 
     /**

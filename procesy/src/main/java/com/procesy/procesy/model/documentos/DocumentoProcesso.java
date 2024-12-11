@@ -25,10 +25,9 @@ public class DocumentoProcesso {
         private Long id;
 
         // Relação com Processo
-        @ManyToOne(fetch = FetchType.LAZY)
+        @OneToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "processo_id", nullable = false)
         private Processo processo;
-
         // Relação com Procuracao
         @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
         private Set<Procuracao> procuracoes = new HashSet<>();
