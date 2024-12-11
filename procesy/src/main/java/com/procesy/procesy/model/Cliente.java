@@ -1,21 +1,28 @@
 package com.procesy.procesy.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
-import java.util.Date;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
-@Data
+@Getter
+@Setter
 @Entity
 @Table(name = "cliente")
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Cliente {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     private String nome;
@@ -32,11 +39,9 @@ public class Cliente {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "advogado_id", nullable = false)
-    @JsonBackReference("advogado-clientes")
     private Advogado advogado;
 
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference("cliente-processos")
     private List<Processo> processos = new ArrayList<>();
 
     public Cliente(long l, String s) {

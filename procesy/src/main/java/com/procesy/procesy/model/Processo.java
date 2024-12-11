@@ -1,25 +1,29 @@
 package com.procesy.procesy.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.PastOrPresent;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-@Data
+@Getter
+@Setter
 @Entity
 @Table(name = "processo")
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Processo {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @NotBlank(message = "Número do processo é obrigatório")
@@ -28,20 +32,16 @@ public class Processo {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cliente_id", nullable = false)
-    @JsonBackReference("cliente-processos")
     private Cliente cliente;
 
-    @PastOrPresent(message = "Data de início deve estar no passado ou presente")
     @Temporal(TemporalType.DATE)
     @Column(name = "data_inicio")
     private Date dataInicio;
 
-    @PastOrPresent(message = "Data de atualização deve estar no passado ou presente")
     @Temporal(TemporalType.DATE)
     @Column(name = "data_atualizacao")
     private Date dataAtualizacao;
 
-    @FutureOrPresent(message = "Data de fim deve estar no futuro ou presente")
     @Temporal(TemporalType.DATE)
     @Column(name = "data_fim")
     private Date dataFim;
@@ -55,12 +55,9 @@ public class Processo {
     private String acao;
 
     @OneToMany(mappedBy = "processo", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference("processo-documentoProcessos")
     private List<DocumentoProcesso> documentoProcessos = new ArrayList<>();
 
-    public Processo() {
-
-    }
+    public Processo() {}
 
     // Outros métodos, se necessário
 }

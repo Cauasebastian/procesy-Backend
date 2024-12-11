@@ -1,47 +1,47 @@
 package com.procesy.procesy.model.documentos;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.procesy.procesy.model.Processo;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
-@Data
+@Getter
+@Setter
 @Entity
 @Table(name = "documento_processo")
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class DocumentoProcesso {
 
         @Id
         @GeneratedValue(strategy = GenerationType.IDENTITY)
+        @EqualsAndHashCode.Include
         private Long id;
 
         // Relação com Processo
         @ManyToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "processo_id", nullable = false)
-        @JsonBackReference("processo-documentoProcessos")
         private Processo processo;
 
         // Relação com Procuracao
         @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
-        @JsonManagedReference("documentoProcesso-procuracoes")
-        private List<Procuracao> procuracoes = new ArrayList<>();
+        private Set<Procuracao> procuracoes = new HashSet<>();
 
         // Relação com PeticaoInicial
         @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
-        @JsonManagedReference("documentoProcesso-peticoesIniciais")
-        private List<PeticaoInicial> peticoesIniciais = new ArrayList<>();
+        private Set<PeticaoInicial> peticoesIniciais = new HashSet<>();
 
         // Relação com DocumentosComplementares
         @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
-        @JsonManagedReference("documentoProcesso-documentosComplementares")
-        private List<DocumentoComplementar> documentosComplementares = new ArrayList<>();
+        private Set<DocumentoComplementar> documentosComplementares = new HashSet<>();
 
-        public DocumentoProcesso() {
-
-        }
+        public DocumentoProcesso() {}
 
         // Outros métodos, se necessário
 }
