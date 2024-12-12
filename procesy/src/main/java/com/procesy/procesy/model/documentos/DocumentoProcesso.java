@@ -28,6 +28,11 @@ public class DocumentoProcesso {
         @OneToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "processo_id", nullable = false)
         private Processo processo;
+
+        // Relação com Contrato
+        @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
+        private Set<Contrato> contratos = new HashSet<>();
+
         // Relação com Procuracao
         @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
         private Set<Procuracao> procuracoes = new HashSet<>();
@@ -39,6 +44,19 @@ public class DocumentoProcesso {
         // Relação com DocumentosComplementares
         @OneToMany(mappedBy = "documentoProcesso", cascade = CascadeType.ALL, orphanRemoval = true)
         private Set<DocumentoComplementar> documentosComplementares = new HashSet<>();
+
+        // Novos campos de status
+        @Column(name = "status_contrato", nullable = false)
+        private String statusContrato;
+
+        @Column(name = "status_procuracoes", nullable = false)
+        private String statusProcuracoes;
+
+        @Column(name = "status_peticoes_iniciais", nullable = false)
+        private String statusPeticoesIniciais;
+
+        @Column(name = "status_documentos_complementares", nullable = false)
+        private String statusDocumentosComplementares;
 
         public DocumentoProcesso() {}
 

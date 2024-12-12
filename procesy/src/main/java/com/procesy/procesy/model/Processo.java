@@ -30,6 +30,14 @@ public class Processo {
     @Column(name = "numero_processo", nullable = false, unique = true)
     private String numeroProcesso;
 
+    @NotBlank(message = "Tipo de processo é obrigatório")
+    @Column(name = "tipo_processo", nullable = false)
+    private String tipoProcesso;
+
+    @NotBlank(message = "Tipo de atendimento é obrigatório")
+    @Column(name = "tipo_atendimento", nullable = false)
+    private String tipoAtendimento;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cliente_id", nullable = false)
     private Cliente cliente;
@@ -42,17 +50,11 @@ public class Processo {
     @Column(name = "data_atualizacao")
     private Date dataAtualizacao;
 
-    @Temporal(TemporalType.DATE)
-    @Column(name = "data_fim")
-    private Date dataFim;
 
     @NotBlank(message = "Status é obrigatório")
     @Column(name = "status")
     private String status;
 
-    @NotBlank(message = "Ação é obrigatória")
-    @Column(name = "acao")
-    private String acao;
 
     @OneToOne(mappedBy = "processo", cascade = CascadeType.ALL, orphanRemoval = true)
     private DocumentoProcesso documentoProcesso;

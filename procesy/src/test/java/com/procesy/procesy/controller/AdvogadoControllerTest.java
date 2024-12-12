@@ -1,5 +1,6 @@
 package com.procesy.procesy.controller;
 
+import com.procesy.procesy.dto.ClienteDTO;
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.model.Processo;
@@ -62,7 +63,7 @@ class AdvogadoControllerTest {
         when(advogadoRepository.findByEmail(email)).thenReturn(Optional.of(advogado));
         when(clienteRepository.findByAdvogado(advogado)).thenReturn(clientes);
 
-        ResponseEntity<List<Cliente>> response = advogadoController.getMeusClientes(authentication);
+        ResponseEntity<List<ClienteDTO>> response = advogadoController.getMeusClientes(authentication);
 
         assertEquals(ResponseEntity.ok(clientes), response);
     }
