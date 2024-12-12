@@ -111,7 +111,6 @@ class AdvogadoControllerTesteDeIntegracao {
         novoProcesso.setCliente(cliente);
         novoProcesso.setDataInicio(new Date());
         novoProcesso.setStatus("Ativo");
-        novoProcesso.setAcao("Ação de Teste");
         String json = objectMapper.writeValueAsString(novoProcesso);
         mockMvc.perform(post("/advogado/processos")
                         .contentType(MediaType.APPLICATION_JSON)

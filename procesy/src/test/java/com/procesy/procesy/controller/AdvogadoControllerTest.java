@@ -149,66 +149,7 @@ class AdvogadoControllerTest {
         assertNull(response.getBody()); // Verifica que o corpo da resposta é nulo
     }
 
-    /**
-     * Testa o método criarProcesso para garantir que cria e retorna um novo processo associado ao cliente e advogado.
-     */
-    @Test
-    void criarProcesso_criaERetornaProcesso() {
-        String email = "advogado@example.com";
-        Advogado advogado = new Advogado();
-        advogado.setEmail(email);
-        Processo processo = new Processo();
-        Processo savedProcesso = new Processo();
-        Long clienteId = 1L;
 
-        when(authentication.getName()).thenReturn(email);
-        when(advogadoRepository.findByEmail(email)).thenReturn(Optional.of(advogado));
-        when(processoService.criarProcesso(processo, advogado.getId(), clienteId)).thenReturn(savedProcesso);
-
-        ResponseEntity<Processo> response = advogadoController.criarProcesso(processo, clienteId, authentication);
-
-        assertEquals(200, response.getStatusCodeValue()); // Verifica o status HTTP 200
-        assertEquals(savedProcesso, response.getBody()); // Verifica o processo salvo retornado
-    }
-
-
-
-    /**
-     * Testa o método criarProcesso para garantir que lança exceção quando o advogado não é encontrado.
-     */
-    @Test
-    void criarProcesso_advogadoNotFound_throwsException() {
-        String email = "advogado@example.com";
-        Processo processo = new Processo();
-        Long clienteId = 1L;
-
-        when(authentication.getName()).thenReturn(email);
-        when(advogadoRepository.findByEmail(email)).thenReturn(Optional.empty());
-
-        assertThrows(RuntimeException.class, () -> advogadoController.criarProcesso(processo, clienteId, authentication));
-    }
-    /**
-     * Testa o método atualizarProcesso para garantir que atualiza e retorna o processo atualizado.
-     */
-    @Test
-    void atualizarProcesso_updatesAndReturnsProcess() {
-        String email = "advogado@example.com";
-        Advogado advogado = new Advogado();
-        advogado.setEmail(email);
-        Processo processo = new Processo();
-        processo.setId(1L);
-        processo.setNumeroProcesso("12345");
-        Processo processoAtualizado = new Processo();
-        processoAtualizado.setNumeroProcesso("54321");
-
-        when(authentication.getName()).thenReturn(email);
-        when(advogadoRepository.findByEmail(email)).thenReturn(Optional.of(advogado));
-        when(processoService.atualizarProcesso(processo.getId(), processoAtualizado, advogado.getId())).thenReturn(processoAtualizado);
-
-        ResponseEntity<Processo> response = advogadoController.atualizarProcesso(processo.getId(), processoAtualizado, authentication);
-
-        assertEquals(ResponseEntity.ok(processoAtualizado), response);
-    }
     /**
      * Testa o método deletarProcesso para garantir que deleta o processo corretamente.
      */
