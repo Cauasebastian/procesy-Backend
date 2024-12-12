@@ -1,6 +1,7 @@
 package com.procesy.procesy.security;
 
 import com.procesy.procesy.service.AdvogadoDetailsService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -58,11 +59,13 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+    @Value("${cors.allowedOrigins}")
+    private String allowedOrigin;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173")); // Permite apenas o frontend específico
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigin)); // Permite apenas o frontend específico
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS")); // Métodos HTTP permitidos
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type")); // Cabeçalhos permitidos
         configuration.setAllowCredentials(true); // Permite o envio de credenciais (cookies, headers)
