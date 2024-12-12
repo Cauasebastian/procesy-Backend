@@ -33,7 +33,107 @@ public class AdvogadoController {
 
     // ---------------------- Endpoints para Clientes ----------------------
 
-    // ... [Endereços de Clientes permanecem inalterados]
+    /**
+     * Endpoint para obter os Clientes do Advogado autenticado.
+     *
+     * @param authentication Objeto de autenticação do Spring Security.
+     * @return Lista de Clientes.
+     */
+    @GetMapping("/clientes")
+    public ResponseEntity<List<Cliente>> getMeusClientes(Authentication authentication) {
+        String email = authentication.getName();
+        Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
+        if (advogadoOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(null);
+        }
+        Advogado advogado = advogadoOpt.get();
+        List<Cliente> clientes = clienteRepository.findByAdvogado(advogado);
+        return ResponseEntity.ok(clientes);
+    }
+
+    /**
+     * Endpoint para criar um novo Cliente.
+     *
+     * @param cliente        Dados do Cliente.
+     * @param authentication Objeto de autenticação do Spring Security.
+     * @return Cliente criado.
+     */
+    @PostMapping("/clientes")
+    public ResponseEntity<Cliente> criarCliente(@RequestBody Cliente cliente, Authentication authentication) {
+        String email = authentication.getName();
+        Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
+        if (advogadoOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(null);
+        }
+        Advogado advogado = advogadoOpt.get();
+        cliente.setAdvogado(advogado);
+        Cliente savedCliente = clienteRepository.save(cliente);
+        return ResponseEntity.ok(savedCliente);
+    }
+
+    /**
+     * Endpoint para atualizar um Cliente existente.
+     *
+     * @param id               ID do Cliente a ser atualizado.
+     * @param clienteAtualizado Dados atualizados do Cliente.
+     * @param authentication   Objeto de autenticação do Spring Security.
+     * @return Cliente atualizado.
+     */
+    @PutMapping("/clientes/{id}")
+    public ResponseEntity<Cliente> atualizarCliente(
+            @PathVariable Long id,
+            @Valid @RequestBody Cliente clienteAtualizado,
+            Authentication authentication) {
+        String email = authentication.getName();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+
+        if (!cliente.getAdvogado().getId().equals(advogado.getId())) {
+            return ResponseEntity.status(403).build(); // Forbidden
+        }
+
+        // Atualiza os campos necessários
+        cliente.setNome(clienteAtualizado.getNome());
+        cliente.setGenero(clienteAtualizado.getGenero());
+        cliente.setEstadoCivil(clienteAtualizado.getEstadoCivil());
+        cliente.setCpf_cnpj(clienteAtualizado.getCpf_cnpj());
+        cliente.setNaturalidade(clienteAtualizado.getNaturalidade());
+        cliente.setDataNascimento(clienteAtualizado.getDataNascimento());
+        cliente.setTelefone(clienteAtualizado.getTelefone());
+        cliente.setEmail(clienteAtualizado.getEmail());
+
+        Cliente salvo = clienteRepository.save(cliente);
+        return ResponseEntity.ok(salvo);
+    }
+
+    /**
+     * Endpoint para deletar um Cliente.
+     *
+     * @param id             ID do Cliente a ser deletado.
+     * @param authentication Objeto de autenticação do Spring Security.
+     * @return Resposta vazia com status 204.
+     */
+    @DeleteMapping("/clientes/{id}")
+    public ResponseEntity<Void> deletarCliente(
+            @PathVariable Long id,
+            Authentication authentication) {
+        String email = authentication.getName();
+        Advogado advogado = advogadoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+
+        if (!cliente.getAdvogado().getId().equals(advogado.getId())) {
+            return ResponseEntity.status(403).build(); // Forbidden
+        }
+
+        clienteRepository.delete(cliente);
+        return ResponseEntity.noContent().build();
+    }
 
     // ---------------------- Endpoints para Processos ----------------------
 
