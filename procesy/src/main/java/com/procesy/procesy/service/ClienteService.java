@@ -1,5 +1,6 @@
 package com.procesy.procesy.service;
 
+import com.procesy.procesy.dto.ClienteDTO;
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.repository.ClienteRepository;
@@ -110,5 +111,15 @@ public class ClienteService {
         }
 
         return cliente;
+    }
+
+    public ClienteDTO convertToDTO(Cliente cliente) {
+        ClienteDTO dto = new ClienteDTO();
+        dto.setId(cliente.getId());
+        dto.setNome(cliente.getNome());
+        dto.setTelefone(cliente.getTelefone());
+        dto.setEmail(cliente.getEmail());
+        dto.setQuantidadeProcessos(cliente.getProcessos() != null ? cliente.getProcessos().size() : 0);
+        return dto;
     }
 }

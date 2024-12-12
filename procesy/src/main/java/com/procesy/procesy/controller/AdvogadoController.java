@@ -7,6 +7,7 @@ import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.model.Processo;
 import com.procesy.procesy.repository.AdvogadoRepository;
 import com.procesy.procesy.repository.ClienteRepository;
+import com.procesy.procesy.service.ClienteService;
 import com.procesy.procesy.service.ProcessoService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,9 @@ public class AdvogadoController {
     private ClienteRepository clienteRepository;
 
     @Autowired
+    private ClienteService clienteService;
+
+    @Autowired
     private ProcessoService processoService;
 
     // ---------------------- Endpoints para Clientes ----------------------
@@ -40,7 +44,7 @@ public class AdvogadoController {
      * @return Lista de Clientes.
      */
     @GetMapping("/clientes")
-    public ResponseEntity<List<Cliente>> getMeusClientes(Authentication authentication) {
+    public ResponseEntity<List<ClienteDTO>> getMeusClientes(Authentication authentication) {
         String email = authentication.getName();
         Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
         if (advogadoOpt.isEmpty()) {
@@ -48,7 +52,13 @@ public class AdvogadoController {
         }
         Advogado advogado = advogadoOpt.get();
         List<Cliente> clientes = clienteRepository.findByAdvogado(advogado);
-        return ResponseEntity.ok(clientes);
+
+        // Converter para ClienteDTO
+        List<ClienteDTO> clienteDTOs = clientes.stream()
+                .map(clienteService::convertToDTO)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(clienteDTOs);
     }
 
     /**
