@@ -1,0 +1,29 @@
+package com.procesy.procesy.security.Encription;
+
+
+import com.procesy.procesy.security.Encription.KeyConverterUtil;
+import com.procesy.procesy.security.Encription.PrivateKeyHolder;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+import java.security.PrivateKey;
+
+@Component
+public class PrivateKeyInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        String privateKeyHeader = request.getHeader("X-Private-Key");
+        if (privateKeyHeader != null && !privateKeyHeader.isEmpty()) {
+            PrivateKey privateKey = KeyConverterUtil.convertPrivateKey(privateKeyHeader);
+            PrivateKeyHolder.setPrivateKey(privateKey);
+        }
+        return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        PrivateKeyHolder.clear();
+    }
+}

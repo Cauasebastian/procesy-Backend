@@ -38,6 +38,17 @@ public class Contrato {
     @JoinColumn(name = "documento_processo_id", nullable = false)
     private DocumentoProcesso documentoProcesso;
 
+    // Campos para criptografia
+    @Lob
+    @Column(name = "encrypted_key", columnDefinition = "MEDIUMBLOB")
+    @JsonIgnore
+    private byte[] encryptedKey;
+
+    @Lob
+    @Column(name = "iv", columnDefinition = "BLOB")
+    @JsonIgnore
+    private byte[] iv;
+
     public Contrato() {}
 
     public Contrato(byte[] arquivo, String nomeArquivo, String tipoArquivo) {

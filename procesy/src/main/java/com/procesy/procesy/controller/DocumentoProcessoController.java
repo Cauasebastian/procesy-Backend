@@ -89,6 +89,8 @@ public class DocumentoProcessoController {
                     .body(procuracao.getArquivo());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -108,6 +110,8 @@ public class DocumentoProcessoController {
                     .body(peticaoInicial.getArquivo());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -127,6 +131,8 @@ public class DocumentoProcessoController {
                     .body(documentoComplementar.getArquivo());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -146,6 +152,8 @@ public class DocumentoProcessoController {
                     .body(contrato.getArquivo());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }

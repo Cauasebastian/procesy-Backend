@@ -112,6 +112,8 @@ public class ProcessoService {
         processo.setDataAtualizacao(parseDate(processoDTO.getDataAtualizacao()));
         processo.setStatus(processoDTO.getStatus());
         processo.setCliente(cliente);
+        //adicionar advogado
+        processo.setAdvogado(cliente.getAdvogado());
 
         // Criar DocumentoProcesso com os status
         DocumentoProcesso documentoProcesso = new DocumentoProcesso();

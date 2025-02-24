@@ -37,6 +37,12 @@ public class Advogado {
     @NotEmpty(message = "A senha é obrigatória.")
     private String senha;
 
+    // Armazena a chave pública do advogado para criptografia
+    @Lob
+    @Column(name = "public_key", nullable = false, columnDefinition = "MEDIUMBLOB")
+    private byte[] publicKey;
+
+
     @OneToMany(mappedBy = "advogado", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Cliente> clientes = new ArrayList<>();
 }

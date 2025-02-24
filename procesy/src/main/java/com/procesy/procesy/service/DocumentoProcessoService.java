@@ -17,231 +17,287 @@ import com.procesy.procesy.repository.documento.DocumentoComplementarRepository;
 import com.procesy.procesy.repository.documento.DocumentoProcessoRepository;
 import com.procesy.procesy.repository.documento.PeticaoInicialRepository;
 import com.procesy.procesy.repository.documento.ProcuracaoRepository;
+import com.procesy.procesy.security.Encription.FileCryptoUtil;
+import com.procesy.procesy.security.Encription.PrivateKeyHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.transaction.Transactional;
 import java.io.IOException;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Serviço para gerenciar operações relacionadas a DocumentoProcesso e seus documentos associados.
- */
 @Service
 public class DocumentoProcessoService {
 
-    @Autowired
-    private ProcessoRepository processoRepository;
+    @Autowired private ProcessoRepository processoRepository;
+    @Autowired private DocumentoProcessoRepository documentoProcessoRepository;
+    @Autowired private ProcuracaoRepository procuracaoRepository;
+    @Autowired private PeticaoInicialRepository peticaoInicialRepository;
+    @Autowired private DocumentoComplementarRepository documentoComplementarRepository;
+    @Autowired private ContratoRepository contratoRepository;
 
-    @Autowired
-    private DocumentoProcessoRepository documentoProcessoRepository;
-
-    @Autowired
-    private ProcuracaoRepository procuracaoRepository;
-
-    @Autowired
-    private PeticaoInicialRepository peticaoInicialRepository;
-
-    @Autowired
-    private DocumentoComplementarRepository documentoComplementarRepository;
-
-    @Autowired
-    private ContratoRepository contratoRepository;
-
-    /**
-     * Adiciona ou atualiza documentos a um Processo existente.
-     *
-     * @param processoId                     ID do Processo ao qual os documentos serão adicionados.
-     * @param procuracoesFiles               Lista de arquivos de procuração.
-     * @param peticoesIniciaisFiles          Lista de arquivos de petição inicial.
-     * @param documentosComplementaresFiles  Lista de arquivos de documentos complementares.
-     * @param contratosFiles                 Lista de arquivos de contratos.
-     * @throws IOException                    Se ocorrer um erro ao ler os arquivos.
-     * @throws IllegalArgumentException       Se o Processo com o ID fornecido não for encontrado.
-     */
     @Transactional
     public void adicionarDocumentosAoProcesso(Long processoId,
                                               List<MultipartFile> procuracoesFiles,
                                               List<MultipartFile> peticoesIniciaisFiles,
                                               List<MultipartFile> documentosComplementaresFiles,
-                                              List<MultipartFile> contratosFiles) throws IOException {
+                                              List<MultipartFile> contratosFiles) throws Exception {
 
         Processo processo = processoRepository.findById(processoId)
-                .orElseThrow(() -> new IllegalArgumentException("Processo com ID " + processoId + " não encontrado."));
+                .orElseThrow(() -> new IllegalArgumentException("Processo não encontrado"));
 
+
+        // Obtém a chave pública do advogado associado ao processo
+        byte[] publicKeyBytes = processo.getAdvogado().getPublicKey();
+        PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(publicKeyBytes));DocumentoProcesso documentoProcesso = initializeDocumentoProcesso(processo);
+
+        clearExistingDocuments(documentoProcesso);
+
+        processarDocumentos(procuracoesFiles, publicKey, documentoProcesso, "Procuracao");
+        processarDocumentos(peticoesIniciaisFiles, publicKey, documentoProcesso, "PeticaoInicial");
+        processarDocumentos(documentosComplementaresFiles, publicKey, documentoProcesso, "DocumentoComplementar");
+        processarContratos(contratosFiles, publicKey, documentoProcesso);
+
+        documentoProcessoRepository.save(documentoProcesso);
+    }
+
+    private DocumentoProcesso initializeDocumentoProcesso(Processo processo) {
         DocumentoProcesso documentoProcesso = processo.getDocumentoProcesso();
-
         if (documentoProcesso == null) {
-            // Se não existe DocumentoProcesso, cria um novo
             documentoProcesso = new DocumentoProcesso();
             documentoProcesso.setProcesso(processo);
             processo.setDocumentoProcesso(documentoProcesso);
         }
+        return documentoProcesso;
+    }
 
-        // Limpar documentos existentes se necessário (opcional)
+    private void clearExistingDocuments(DocumentoProcesso documentoProcesso) {
         documentoProcesso.getProcuracoes().clear();
         documentoProcesso.getPeticoesIniciais().clear();
         documentoProcesso.getDocumentosComplementares().clear();
-        documentoProcesso.getContratos().clear(); // Limpar contratos existentes
-
-        // Processar Procurações
-        for (MultipartFile file : procuracoesFiles) {
-            Procuracao procuracao = new Procuracao(file.getBytes(), file.getOriginalFilename(), file.getContentType());
-            procuracao.setDocumentoProcesso(documentoProcesso); // Vincular de volta
-            documentoProcesso.getProcuracoes().add(procuracao);
-        }
-
-        // Processar Petições Iniciais
-        for (MultipartFile file : peticoesIniciaisFiles) {
-            PeticaoInicial peticaoInicial = new PeticaoInicial(file.getBytes(), file.getOriginalFilename(), file.getContentType());
-            peticaoInicial.setDocumentoProcesso(documentoProcesso); // Vincular de volta
-            documentoProcesso.getPeticoesIniciais().add(peticaoInicial);
-        }
-
-        // Processar Documentos Complementares
-        for (MultipartFile file : documentosComplementaresFiles) {
-            DocumentoComplementar documentoComplementar = new DocumentoComplementar(file.getBytes(), file.getOriginalFilename(), file.getContentType());
-            documentoComplementar.setDocumentoProcesso(documentoProcesso); // Vincular de volta
-            documentoProcesso.getDocumentosComplementares().add(documentoComplementar);
-        }
-
-        // Processar Contratos
-        for (MultipartFile file : contratosFiles) {
-            Contrato contrato = new Contrato(file.getBytes(), file.getOriginalFilename(), file.getContentType(), documentoProcesso.getStatusContrato());
-            contrato.setDocumentoProcesso(documentoProcesso); // Vincular de volta
-            documentoProcesso.getContratos().add(contrato);
-        }
-
-        // Salvar DocumentoProcesso (CascadeType.ALL cuidará de salvar DocumentoProcesso e seus documentos)
-        documentoProcessoRepository.save(documentoProcesso);
+        documentoProcesso.getContratos().clear();
     }
 
-    /**
-     * Recupera todos os documentos de um Processo específico como DTO.
-     *
-     * @param processoId ID do Processo.
-     * @return DocumentoProcessoDTO contendo listas de IDs e metadados dos documentos, incluindo status.
-     * @throws IllegalArgumentException Se o Processo com o ID fornecido não for encontrado.
-     */
+    private void processarDocumentos(List<MultipartFile> files,
+                                     PublicKey publicKey,
+                                     DocumentoProcesso documentoProcesso,
+                                     String tipoDocumento) throws Exception {
+        for (MultipartFile file : files) {
+            FileCryptoUtil.EncryptedFileData encryptedData =
+                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+
+            switch (tipoDocumento) {
+                case "Procuracao":
+                    createAndAddProcuracao(documentoProcesso, encryptedData, file);
+                    break;
+                case "PeticaoInicial":
+                    createAndAddPeticao(documentoProcesso, encryptedData, file);
+                    break;
+                case "DocumentoComplementar":
+                    createAndAddDocumentoComplementar(documentoProcesso, encryptedData, file);
+                    break;
+            }
+        }
+    }
+
+    private void processarContratos(List<MultipartFile> files,
+                                    PublicKey publicKey,
+                                    DocumentoProcesso documentoProcesso) throws Exception {
+        for (MultipartFile file : files) {
+            FileCryptoUtil.EncryptedFileData encryptedData =
+                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+
+            Contrato contrato = new Contrato(
+                    encryptedData.getEncryptedData(),
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    documentoProcesso.getStatusContrato()
+            );
+            contrato.setEncryptedKey(encryptedData.getEncryptedKey());
+            contrato.setIv(encryptedData.getIv());
+            contrato.setDocumentoProcesso(documentoProcesso);
+            documentoProcesso.getContratos().add(contrato);
+        }
+    }
+
+    private void createAndAddProcuracao(DocumentoProcesso documentoProcesso,
+                                        FileCryptoUtil.EncryptedFileData data,
+                                        MultipartFile file) {
+        Procuracao procuracao = new Procuracao(
+                data.getEncryptedData(),
+                file.getOriginalFilename(),
+                file.getContentType()
+        );
+        procuracao.setEncryptedKey(data.getEncryptedKey());
+        procuracao.setIv(data.getIv());
+        procuracao.setDocumentoProcesso(documentoProcesso);
+        documentoProcesso.getProcuracoes().add(procuracao);
+    }
+
+    private void createAndAddPeticao(DocumentoProcesso documentoProcesso,
+                                     FileCryptoUtil.EncryptedFileData data,
+                                     MultipartFile file) {
+        PeticaoInicial peticao = new PeticaoInicial(
+                data.getEncryptedData(),
+                file.getOriginalFilename(),
+                file.getContentType()
+        );
+        peticao.setEncryptedKey(data.getEncryptedKey());
+        peticao.setIv(data.getIv());
+        peticao.setDocumentoProcesso(documentoProcesso);
+        documentoProcesso.getPeticoesIniciais().add(peticao);
+    }
+
+    private void createAndAddDocumentoComplementar(DocumentoProcesso documentoProcesso,
+                                                   FileCryptoUtil.EncryptedFileData data,
+                                                   MultipartFile file) {
+        DocumentoComplementar documento = new DocumentoComplementar(
+                data.getEncryptedData(),
+                file.getOriginalFilename(),
+                file.getContentType()
+        );
+        documento.setEncryptedKey(data.getEncryptedKey());
+        documento.setIv(data.getIv());
+        documento.setDocumentoProcesso(documentoProcesso);
+        documentoProcesso.getDocumentosComplementares().add(documento);
+    }
+
+    public Procuracao getProcuracaoById(Long procuracaoId) throws Exception {
+        Procuracao procuracao = procuracaoRepository.findById(procuracaoId)
+                .orElseThrow(() -> new IllegalArgumentException("Procuração não encontrada"));
+        return decryptDocument(procuracao);
+    }
+
+    public PeticaoInicial getPeticaoInicialById(Long peticaoId) throws Exception {
+        PeticaoInicial peticao = peticaoInicialRepository.findById(peticaoId)
+                .orElseThrow(() -> new IllegalArgumentException("Petição não encontrada"));
+        return decryptDocument(peticao);
+    }
+
+    public DocumentoComplementar getDocumentoComplementarById(Long documentoId) throws Exception {
+        DocumentoComplementar documento = documentoComplementarRepository.findById(documentoId)
+                .orElseThrow(() -> new IllegalArgumentException("Documento não encontrado"));
+        return decryptDocument(documento);
+    }
+
+    public Contrato getContratoById(Long contratoId) throws Exception {
+        Contrato contrato = contratoRepository.findById(contratoId)
+                .orElseThrow(() -> new IllegalArgumentException("Contrato não encontrado"));
+        return decryptDocument(contrato);
+    }
+
+    private <T> T decryptDocument(T documento) throws Exception {
+        PrivateKey privateKey = PrivateKeyHolder.getPrivateKey();
+        if (privateKey == null) {
+            throw new SecurityException("Chave privada não fornecida");
+        }
+
+        FileCryptoUtil.EncryptedFileData encryptedData = extractEncryptedData(documento);
+        byte[] decryptedData = FileCryptoUtil.decryptFile(encryptedData, privateKey);
+        return createDecryptedDocument(documento, decryptedData);
+    }
+
+    private FileCryptoUtil.EncryptedFileData extractEncryptedData(Object documento) {
+        if (documento instanceof Procuracao) {
+            Procuracao p = (Procuracao) documento;
+            return new FileCryptoUtil.EncryptedFileData(p.getArquivo(), p.getEncryptedKey(), p.getIv());
+        }
+        // Implementar para outros tipos de documentos
+        if (documento instanceof PeticaoInicial) {
+            PeticaoInicial p = (PeticaoInicial) documento;
+            return new FileCryptoUtil.EncryptedFileData(p.getArquivo(), p.getEncryptedKey(), p.getIv());
+        }
+        if (documento instanceof DocumentoComplementar) {
+            DocumentoComplementar d = (DocumentoComplementar) documento;
+            return new FileCryptoUtil.EncryptedFileData(d.getArquivo(), d.getEncryptedKey(), d.getIv());
+        }
+        if (documento instanceof Contrato) {
+            Contrato c = (Contrato) documento;
+            return new FileCryptoUtil.EncryptedFileData(c.getArquivo(), c.getEncryptedKey(), c.getIv());
+        }
+        throw new IllegalArgumentException("Tipo de documento não suportado");
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T createDecryptedDocument(T original, byte[] decryptedData) {
+        if (original instanceof Procuracao) {
+            Procuracao p = (Procuracao) original;
+            Procuracao decrypted = new Procuracao(decryptedData, p.getNomeArquivo(), p.getTipoArquivo());
+            decrypted.setId(p.getId());
+            return (T) decrypted;
+        }
+        // Implementar para outros tipos de documentos
+        if (original instanceof PeticaoInicial) {
+            PeticaoInicial p = (PeticaoInicial) original;
+            PeticaoInicial decrypted = new PeticaoInicial(decryptedData, p.getNomeArquivo(), p.getTipoArquivo());
+            decrypted.setId(p.getId());
+            return (T) decrypted;
+        }
+        if (original instanceof DocumentoComplementar) {
+            DocumentoComplementar d = (DocumentoComplementar) original;
+            DocumentoComplementar decrypted = new DocumentoComplementar(decryptedData, d.getNomeArquivo(), d.getTipoArquivo());
+            decrypted.setId(d.getId());
+            return (T) decrypted;
+        }
+        if (original instanceof Contrato) {
+            Contrato c = (Contrato) original;
+            Contrato decrypted = new Contrato(decryptedData, c.getNomeArquivo(), c.getTipoArquivo());
+            decrypted.setId(c.getId());
+            return (T) decrypted;
+        }
+        throw new IllegalArgumentException("Tipo de documento não suportado");
+    }
+
     @Transactional
     public DocumentoProcessoDTO getDocumentosDoProcessoDTO(Long processoId) {
         DocumentoProcesso documentoProcesso = documentoProcessoRepository.findByProcessoIdWithDocuments(processoId)
-                .orElseThrow(() -> new IllegalArgumentException("Nenhum DocumentoProcesso encontrado para o Processo com ID " + processoId));
+                .orElseThrow(() -> new IllegalArgumentException("DocumentoProcesso não encontrado"));
 
         DocumentoProcessoDTO dto = new DocumentoProcessoDTO();
         dto.setId(documentoProcesso.getId());
         dto.setProcessoId(documentoProcesso.getProcesso().getId());
 
-        // Setar os status de cada tipo de documento
         dto.setStatusContrato(documentoProcesso.getStatusContrato());
         dto.setStatusProcuracoes(documentoProcesso.getStatusProcuracoes());
         dto.setStatusPeticoesIniciais(documentoProcesso.getStatusPeticoesIniciais());
         dto.setStatusDocumentosComplementares(documentoProcesso.getStatusDocumentosComplementares());
 
-        // Mapear Contratos
-        Set<ContratoDTO> contratosDTO = documentoProcesso.getContratos().stream().map(contrato -> {
-            ContratoDTO cDto = new ContratoDTO();
-            cDto.setId(contrato.getId());
-            cDto.setNomeArquivo(contrato.getNomeArquivo());
-            cDto.setTipoArquivo(contrato.getTipoArquivo());
-            return cDto;
-        }).collect(Collectors.toSet());
-        dto.setContratos(contratosDTO);
-
-        // Mapear Procuracoes
-        Set<ProcuracaoDTO> procuracoesDTO = documentoProcesso.getProcuracoes().stream().map(proc -> {
-            ProcuracaoDTO pDto = new ProcuracaoDTO();
-            pDto.setId(proc.getId());
-            pDto.setNomeArquivo(proc.getNomeArquivo());
-            pDto.setTipoArquivo(proc.getTipoArquivo());
-            return pDto;
-        }).collect(Collectors.toSet());
-        dto.setProcuracoes(procuracoesDTO);
-
-        // Mapear Peticoes Iniciais
-        Set<PeticaoInicialDTO> peticoesDTO = documentoProcesso.getPeticoesIniciais().stream().map(pet -> {
-            PeticaoInicialDTO piDto = new PeticaoInicialDTO();
-            piDto.setId(pet.getId());
-            piDto.setNomeArquivo(pet.getNomeArquivo());
-            piDto.setTipoArquivo(pet.getTipoArquivo());
-            return piDto;
-        }).collect(Collectors.toSet());
-        dto.setPeticoesIniciais(peticoesDTO);
-
-        // Mapear Documentos Complementares
-        Set<DocumentoComplementarDTO> documentosDTO = documentoProcesso.getDocumentosComplementares().stream().map(dc -> {
-            DocumentoComplementarDTO dcDto = new DocumentoComplementarDTO();
-            dcDto.setId(dc.getId());
-            dcDto.setNomeArquivo(dc.getNomeArquivo());
-            dcDto.setTipoArquivo(dc.getTipoArquivo());
-            return dcDto;
-        }).collect(Collectors.toSet());
-        dto.setDocumentosComplementares(documentosDTO);
+        dto.setContratos(mapContratos(documentoProcesso.getContratos()));
+        dto.setProcuracoes(mapProcuracoes(documentoProcesso.getProcuracoes()));
+        dto.setPeticoesIniciais(mapPeticoes(documentoProcesso.getPeticoesIniciais()));
+        dto.setDocumentosComplementares(mapDocumentosComplementares(documentoProcesso.getDocumentosComplementares()));
 
         return dto;
     }
 
-    /**
-     * Recupera o arquivo de um Procuracao específico.
-     *
-     * @param procuracaoId ID do Procuracao.
-     * @return Procuracao com o arquivo.
-     * @throws IllegalArgumentException Se o Procuracao com o ID fornecido não for encontrado.
-     */
-    public Procuracao getProcuracaoById(Long procuracaoId) {
-        Optional<Procuracao> optionalProcuracao = procuracaoRepository.findById(procuracaoId);
-        if (!optionalProcuracao.isPresent()) {
-            throw new IllegalArgumentException("Procuração com ID " + procuracaoId + " não encontrada.");
-        }
-        return optionalProcuracao.get();
+    private Set<ContratoDTO> mapContratos(Set<Contrato> contratos) {
+        return contratos.stream()
+                .map(c -> new ContratoDTO(c.getId(), c.getNomeArquivo(), c.getTipoArquivo()))
+                .collect(Collectors.toSet());
+    }
+    private Set<ProcuracaoDTO> mapProcuracoes(Set<Procuracao> procuracoes) {
+        return procuracoes.stream()
+                .map(p -> new ProcuracaoDTO(p.getId(), p.getNomeArquivo(), p.getTipoArquivo()))
+                .collect(Collectors.toSet());
+    }
+    private Set<PeticaoInicialDTO> mapPeticoes(Set<PeticaoInicial> peticoes) {
+        return peticoes.stream()
+                .map(p -> new PeticaoInicialDTO(p.getId(), p.getNomeArquivo(), p.getTipoArquivo()))
+                .collect(Collectors.toSet());
+    }
+    private Set<DocumentoComplementarDTO> mapDocumentosComplementares(Set<DocumentoComplementar> documentos) {
+        return documentos.stream()
+                .map(d -> new DocumentoComplementarDTO(d.getId(), d.getNomeArquivo(), d.getTipoArquivo()))
+                .collect(Collectors.toSet());
     }
 
-    /**
-     * Recupera o arquivo de uma PeticaoInicial específica.
-     *
-     * @param peticaoId ID da PeticaoInicial.
-     * @return PeticaoInicial com o arquivo.
-     * @throws IllegalArgumentException Se a PeticaoInicial com o ID fornecido não for encontrada.
-     */
-    public PeticaoInicial getPeticaoInicialById(Long peticaoId) {
-        Optional<PeticaoInicial> optionalPeticao = peticaoInicialRepository.findById(peticaoId);
-        if (!optionalPeticao.isPresent()) {
-            throw new IllegalArgumentException("Petição Inicial com ID " + peticaoId + " não encontrada.");
-        }
-        return optionalPeticao.get();
-    }
 
-    /**
-     * Recupera o arquivo de um DocumentoComplementar específico.
-     *
-     * @param documentoComplementarId ID do DocumentoComplementar.
-     * @return DocumentoComplementar com o arquivo.
-     * @throws IllegalArgumentException Se o DocumentoComplementar com o ID fornecido não for encontrado.
-     */
-    public DocumentoComplementar getDocumentoComplementarById(Long documentoComplementarId) {
-        Optional<DocumentoComplementar> optionalDocumento = documentoComplementarRepository.findById(documentoComplementarId);
-        if (!optionalDocumento.isPresent()) {
-            throw new IllegalArgumentException("Documento Complementar com ID " + documentoComplementarId + " não encontrado.");
-        }
-        return optionalDocumento.get();
-    }
-
-    /**
-     * Recupera o arquivo de um Contrato específico.
-     *
-     * @param contratoId ID do Contrato.
-     * @return Contrato com o arquivo.
-     * @throws IllegalArgumentException Se o Contrato com o ID fornecido não for encontrado.
-     */
-    public Contrato getContratoById(Long contratoId) {
-        Optional<Contrato> optionalContrato = contratoRepository.findById(contratoId);
-        if (!optionalContrato.isPresent()) {
-            throw new IllegalArgumentException("Contrato com ID " + contratoId + " não encontrado.");
-        }
-        return optionalContrato.get();
-    }
 }

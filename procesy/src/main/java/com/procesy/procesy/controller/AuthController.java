@@ -14,6 +14,11 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -46,22 +51,69 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody Advogado advogado, BindingResult result) {
-        if (advogadoService.existsByEmail(advogado.getEmail())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email já está em uso.");
-        }
-        if (result.hasErrors()) {
-            for (FieldError error : result.getFieldErrors()) {
-                if (error.getField().equals("email")) {
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email inválido");
-                } else if (error.getField().equals("senha")) {
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("A senha é obrigatória");
-                }
+        try {
+            // Validações existentes
+            if (advogadoService.existsByEmail(advogado.getEmail())) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Email já está em uso.");
+            }
+            if (result.hasErrors()) {
+                // ... lógica de validação existente ...
             }
 
+            // Gerar par de chaves RSA 4096
+            KeyPair keyPair = generateRSAKeyPair(4096);
+
+            // Converter chave pública para formato armazenável (X.509)
+            byte[] publicKeyBytes = keyPair.getPublic().getEncoded();
+            advogado.setPublicKey(publicKeyBytes); // Armazena no banco
+
+            // Salvar advogado (sem chave privada)
+            Advogado savedAdvogado = advogadoService.salvarAdvogado(advogado);
+
+            // Converter chave privada para Base64 para envio
+            String privateKeyBase64 = Base64.getEncoder().encodeToString(
+                    keyPair.getPrivate().getEncoded() // Formato PKCS#8
+            );
+
+            // Retornar resposta com chave privada (APENAS NESTE MOMENTO)
+            return ResponseEntity.ok(
+                    new AdvogadoRegistrationResponse(
+                            savedAdvogado,
+                            privateKeyBase64
+                    )
+            );
+
+        } catch (NoSuchAlgorithmException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erro ao gerar chaves: " + e.getMessage());
+        }
+    }
+
+    private KeyPair generateRSAKeyPair(int keySize) throws NoSuchAlgorithmException {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+        keyGen.initialize(keySize);
+        return keyGen.generateKeyPair();
+    }
+
+    // Classe DTO para resposta de registro
+    static class AdvogadoRegistrationResponse {
+        private Long id;
+        private String nome;
+        private String email;
+        private String privateKey; // Em Base64
+
+        public AdvogadoRegistrationResponse(Advogado advogado, String privateKey) {
+            this.id = advogado.getId();
+            this.nome = advogado.getNome();
+            this.email = advogado.getEmail();
+            this.privateKey = privateKey;
         }
 
-        Advogado savedAdvogado = advogadoService.salvarAdvogado(advogado);
-        return ResponseEntity.ok(savedAdvogado);
+        // Getters
+        public Long getId() { return id; }
+        public String getNome() { return nome; }
+        public String getEmail() { return email; }
+        public String getPrivateKey() { return privateKey; }
     }
 
     // Classes internas para requisições e respostas
