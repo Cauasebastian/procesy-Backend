@@ -12,6 +12,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,19 +49,10 @@ public class SecurityConfig {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
-    // Filtro de Rate Limiting usando Bucket4j para o endpoint /auth/login
+    // Filtro de rate limiting para /auth/login (limita tentativas de login)
     @Bean
-    public OncePerRequestFilter rateLimitFilter() {
+    public OncePerRequestFilter loginRateLimitFilter() {
         return new OncePerRequestFilter() {
-
-            /*
-            Como funciona essa configuração?
-            No início, o bucket pode armazenar até 10 tokens.
-            Para cada requisição, 1 token é consumido.
-            Se o bucket esvaziar, o usuário precisa esperar para que novos tokens sejam adicionados.
-            A cada minuto, o bucket recebe 3 novos tokens, até atingir no máximo 10 tokens.
-             Isso significa que, se o usuário tentar fazer login mais de 10 vezes em um minuto, ele receberá um erro 429.
-             */
             private final Bucket bucket = Bucket4j.builder()
                     .addLimit(Bandwidth.classic(10, Refill.greedy(3, Duration.ofMinutes(1))))
                     .build();
@@ -67,13 +60,45 @@ public class SecurityConfig {
             @Override
             protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
                     throws ServletException, IOException {
-                // Verifica se o endpoint é /auth/login
                 if ("/auth/login".equals(request.getRequestURI())) {
                     if (bucket.tryConsume(1)) {
                         filterChain.doFilter(request, response);
                     } else {
                         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                         response.getWriter().write("Muitas tentativas de login. Tente novamente mais tarde.");
+                        return;
+                    }
+                } else {
+                    filterChain.doFilter(request, response);
+                }
+            }
+        };
+    }
+
+    // Filtro de rate limiting para /auth/register (limita registros por IP)
+    @Bean
+    public OncePerRequestFilter registrationRateLimitFilter() {
+        return new OncePerRequestFilter() {
+            // Mapeia IPs para buckets individuais
+            private final Map<String, Bucket> registrationBuckets = new ConcurrentHashMap<>();
+
+            @Override
+            protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+                    throws ServletException, IOException {
+                if ("/auth/register".equals(request.getRequestURI()) && "POST".equalsIgnoreCase(request.getMethod())) {
+                    String ipAddress = request.getRemoteAddr();
+                    // Cria ou recupera o bucket para esse IP
+                    Bucket bucket = registrationBuckets.computeIfAbsent(ipAddress, ip ->
+                            Bucket4j.builder()
+                                    // Permite, por exemplo, 5 registros por minuto para cada IP
+                                    .addLimit(Bandwidth.classic(5, Refill.greedy(5, Duration.ofMinutes(1))))
+                                    .build()
+                    );
+                    if (bucket.tryConsume(1)) {
+                        filterChain.doFilter(request, response);
+                    } else {
+                        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+                        response.getWriter().write("Muitas tentativas de registro. Tente novamente mais tarde.");
                         return;
                     }
                 } else {
@@ -97,8 +122,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Define sessão como stateless para JWT
                 )
-                // Adiciona o filtro de rate limiting antes do filtro de autenticação JWT
-                .addFilterBefore(rateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
+                // Adiciona os filtros de rate limiting antes do filtro de autenticação JWT
+                .addFilterBefore(registrationRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(loginRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
