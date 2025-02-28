@@ -22,7 +22,14 @@ public class KeyConverterUtil {
             byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyBase64);
             PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            return keyFactory.generatePrivate(keySpec);
+            PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+
+            // Validação do tamanho da chave (mínimo 2048 bits)
+            int keyLengthInBits = privateKey.getEncoded().length * 8;
+            if (keyLengthInBits < 2048) {
+                throw new IllegalArgumentException("Chave RSA muito fraca. Tamanho mínimo necessário: 2048 bits.");
+            }
+            return privateKey;
         } catch (Exception e) {
             throw new RuntimeException("Falha na conversão da chave privada", e);
         }

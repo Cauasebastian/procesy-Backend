@@ -1,8 +1,9 @@
 package com.procesy.procesy.security.Encription;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -10,22 +11,21 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.*;
 import java.util.Base64;
+import java.util.concurrent.TimeUnit;
 
 public class FileCryptoUtil {
 
-    // Configurações AES
     private static final String AES_ALGORITHM = "AES";
     private static final String AES_TRANSFORMATION = "AES/GCM/NoPadding";
     private static final int AES_KEY_SIZE = 256;
-    private static final int IV_LENGTH = 12; // 96 bits
+    private static final int IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
-
-    //lOGGER
     private static final Logger LOGGER = LoggerFactory.getLogger(FileCryptoUtil.class);
 
-    // Configurações RSA
-    private static final String RSA_ALGORITHM = "RSA";
-    private static final String RSA_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+    // Cache de IVs com Caffeine (expira após 5 minutos)
+    private static final Cache<String, Boolean> ivCache = Caffeine.newBuilder()
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .build();
 
     public static class EncryptedFileData {
         private final byte[] encryptedData;
@@ -44,27 +44,31 @@ public class FileCryptoUtil {
     }
 
     public static EncryptedFileData encryptFile(byte[] fileData, PublicKey publicKey) throws Exception {
-        System.out.println("FileCryptoUtil.encryptFile");
         // Geração da chave AES
         KeyGenerator keyGen = KeyGenerator.getInstance(AES_ALGORITHM);
         keyGen.init(AES_KEY_SIZE);
         SecretKey aesKey = keyGen.generateKey();
 
         // Geração do IV
-        System.out.println("Gerando IV...");
         byte[] iv = new byte[IV_LENGTH];
         SecureRandom random = new SecureRandom();
         random.nextBytes(iv);
 
+        // Verificação de IV único
+        String ivB64 = Base64.getEncoder().encodeToString(iv);
+        if (ivCache.getIfPresent(ivB64) != null) {
+            LOGGER.warn("Tentativa de reutilização de IV detectada: {}", ivB64);
+            throw new SecurityException("IV já utilizado");
+        }
+        ivCache.put(ivB64, true);
+
         // Criptografia AES
-        System.out.println("Criptografando dados...");
         Cipher aesCipher = Cipher.getInstance(AES_TRANSFORMATION);
         aesCipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
         byte[] encryptedData = aesCipher.doFinal(fileData);
 
-        // Criptografia RSA da chave AES
-        System.out.println("Criptografando chave AES...");
-        Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORMATION);
+        // Criptografia RSA
+        Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
         rsaCipher.init(Cipher.ENCRYPT_MODE, publicKey);
         byte[] encryptedKey = rsaCipher.doFinal(aesKey.getEncoded());
 
@@ -72,17 +76,13 @@ public class FileCryptoUtil {
     }
 
     public static byte[] decryptFile(EncryptedFileData encryptedData, PrivateKey privateKey) throws Exception {
-        // Descriptografia da chave AES
-        System.out.println("Descriptografando chave AES...");
-        LOGGER.error("Descriptografando chave AES...");
-        Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORMATION);
+        // Descriptografia RSA
+        Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
         rsaCipher.init(Cipher.DECRYPT_MODE, privateKey);
         byte[] aesKeyBytes = rsaCipher.doFinal(encryptedData.getEncryptedKey());
         SecretKey aesKey = new SecretKeySpec(aesKeyBytes, AES_ALGORITHM);
 
-        System.out.println("Descriptografando dados...");
-        LOGGER.error("Descriptografando dados...");
-        // Descriptografia dos dados
+        // Descriptografia AES
         Cipher aesCipher = Cipher.getInstance(AES_TRANSFORMATION);
         aesCipher.init(Cipher.DECRYPT_MODE, aesKey, new GCMParameterSpec(GCM_TAG_LENGTH, encryptedData.getIv()));
         return aesCipher.doFinal(encryptedData.getEncryptedData());
