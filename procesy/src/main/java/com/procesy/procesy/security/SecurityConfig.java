@@ -1,5 +1,8 @@
 package com.procesy.procesy.security;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.procesy.procesy.security.Encription.FileCryptoUtil;
 import com.procesy.procesy.service.AdvogadoDetailsService;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
@@ -9,11 +12,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,12 +32,18 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.io.IOException;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final AdvogadoDetailsService advogadoDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private static final Logger LOGGER = LoggerFactory.getLogger(FileCryptoUtil.class);
 
     public SecurityConfig(AdvogadoDetailsService advogadoDetailsService, JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.advogadoDetailsService = advogadoDetailsService;
@@ -49,112 +55,90 @@ public class SecurityConfig {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
-    // Filtro global para limitar requisições (proteção DDOS) para todos os endpoints
+    // SecurityConfig.java - Filtro DDoS
     @Bean
     public OncePerRequestFilter ddosRateLimitFilter() {
         return new OncePerRequestFilter() {
-            // Mapeia cada IP para seu Bucket individual
-            private final Map<String, Bucket> ddosBuckets = new ConcurrentHashMap<>();
-            // Mapeia cada IP para o tempo (em milissegundos) até o qual ele estará na blacklist
-            private final Map<String, Long> blacklist = new ConcurrentHashMap<>();
-            // Define duração da blacklist (10 minutos)
-            private final long BLACKLIST_DURATION_MS = Duration.ofMinutes(10).toMillis();
-
-            @Override
-            protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-                    throws ServletException, IOException {
-                String ipAddress = request.getRemoteAddr();
-                long now = System.currentTimeMillis();
-
-                // Verifica se o IP está na blacklist e se o tempo de bloqueio ainda não expirou
-                Long blacklistedUntil = blacklist.get(ipAddress);
-                if (blacklistedUntil != null) {
-                    if (now < blacklistedUntil) {
-                        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                        response.getWriter().write("Seu IP foi bloqueado por excesso de requisições. Tente novamente mais tarde.");
-                        return;
-                    } else {
-                        // Remove da blacklist se o tempo expirou
-                        blacklist.remove(ipAddress);
-                    }
-                }
-
-                // Recupera ou cria o Bucket para esse IP (limite: 100 requisições por minuto)
-                Bucket bucket = ddosBuckets.computeIfAbsent(ipAddress, ip ->
-                        Bucket4j.builder()
-                                .addLimit(Bandwidth.classic(100, Refill.greedy(100, Duration.ofMinutes(1))))
-                                .build()
-                );
-
-                if (bucket.tryConsume(1)) {
-                    filterChain.doFilter(request, response);
-                } else {
-                    // Se exceder o limite, adiciona o IP à blacklist
-                    blacklist.put(ipAddress, now + BLACKLIST_DURATION_MS);
-                    response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                    response.getWriter().write("Muitas requisições. Seu IP foi bloqueado temporariamente.");
-                    return;
-                }
-            }
-        };
-    }
-
-    // Filtro de rate limiting para /auth/login
-    @Bean
-    public OncePerRequestFilter loginRateLimitFilter() {
-        return new OncePerRequestFilter() {
-            private final Bucket bucket = Bucket4j.builder()
-                    .addLimit(Bandwidth.classic(10, Refill.greedy(3, Duration.ofMinutes(1))))
+            private final Cache<String, Bucket> ddosBuckets = Caffeine.newBuilder()
+                    .expireAfterAccess(30, TimeUnit.MINUTES)
                     .build();
 
             @Override
             protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
                     throws ServletException, IOException {
-                if ("/auth/login".equals(request.getRequestURI())) {
-                    if (bucket.tryConsume(1)) {
-                        filterChain.doFilter(request, response);
-                    } else {
-                        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                        response.getWriter().write("Muitas tentativas de login. Tente novamente mais tarde.");
-                        return;
-                    }
-                } else {
-                    filterChain.doFilter(request, response);
+                String ipAddress = request.getRemoteAddr();
+
+                Bucket bucket = ddosBuckets.get(ipAddress, k ->
+                        Bucket4j.builder()
+                                .addLimit(Bandwidth.classic(100, Refill.intervally(100, Duration.ofMinutes(1))))
+                                .build()
+                );
+
+                if (!bucket.tryConsume(1)) {
+                    response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+                    response.getWriter().write("Limite global de requisições excedido.");
+                    return;
                 }
+                filterChain.doFilter(request, response);
             }
         };
     }
 
-    // Filtro de rate limiting para /auth/register, limitando registros por IP
+    // Filtro de Login com Rate Limit Global
+    @Bean
+    public OncePerRequestFilter loginRateLimitFilter() {
+        return new OncePerRequestFilter() {
+            private final Bucket bucket = Bucket4j.builder()
+                    .addLimit(Bandwidth.classic(10, Refill.greedy(10, Duration.ofMinutes(1))))
+                    .build();
+
+            @Override
+            protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+                    throws ServletException, IOException {
+                if ("/auth/login".equals(request.getRequestURI()) && !bucket.tryConsume(1)) {
+                    response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+                    LOGGER.error("---------------------------------------------------------");
+                    LOGGER.warn("Muitas tentativas de login."+ request.getRemoteAddr());
+                    response.getWriter().write("Muitas tentativas de login.");
+                    LOGGER.error("---------------------------------------------------------");
+                    return;
+                }
+                filterChain.doFilter(request, response);
+            }
+        };
+    }
+
+    // SecurityConfig.java - Filtro de Registro
     @Bean
     public OncePerRequestFilter registrationRateLimitFilter() {
         return new OncePerRequestFilter() {
-            private final Map<String, Bucket> registrationBuckets = new ConcurrentHashMap<>();
+            private final Cache<String, Bucket> registrationBuckets = Caffeine.newBuilder()
+                    .expireAfterAccess(1, TimeUnit.HOURS)
+                    .build();
+
             @Override
             protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
                     throws ServletException, IOException {
                 if ("/auth/register".equals(request.getRequestURI()) && "POST".equalsIgnoreCase(request.getMethod())) {
                     String ipAddress = request.getRemoteAddr();
-                    Bucket bucket = registrationBuckets.computeIfAbsent(ipAddress, ip ->
+                    Bucket bucket = registrationBuckets.get(ipAddress, k ->
                             Bucket4j.builder()
-                                    // Aumentado para permitir 20 registros por minuto por IP
-                                    .addLimit(Bandwidth.classic(20, Refill.greedy(20, Duration.ofMinutes(1))))
+                                    .addLimit(Bandwidth.classic(20, Refill.intervally(20, Duration.ofMinutes(1))))
                                     .build()
                     );
-                    if (bucket.tryConsume(1)) {
-                        filterChain.doFilter(request, response);
-                    } else {
+                    if (!bucket.tryConsume(1)) {
                         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                        response.getWriter().write("Muitas tentativas de registro para o IP: " + ipAddress + ". Tente novamente mais tarde.");
+                        LOGGER.warn("Muitos registros para o IP: {}", ipAddress);
+                        response.getWriter().write("Limite de registros excedido.");
                         return;
                     }
-                } else {
-                    filterChain.doFilter(request, response);
                 }
+                filterChain.doFilter(request, response);
             }
         };
     }
 
+    // Restante do código mantido igual...
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -169,7 +153,6 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                // Adiciona os filtros de rate limiting: primeiro o DDOS, depois registro e login, depois o JWT.
                 .addFilterBefore(ddosRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(registrationRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(loginRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
