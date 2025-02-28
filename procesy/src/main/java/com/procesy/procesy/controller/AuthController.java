@@ -18,6 +18,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/auth")
@@ -31,6 +34,11 @@ public class AuthController {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
         this.advogadoService = advogadoService;
+    }
+    //HELLO
+    @GetMapping("/hello")
+    public String hello() {
+        return "Hello, World!";
     }
 
     @PostMapping("/login")
@@ -48,51 +56,57 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Falha na autenticação: " + e.getMessage());
         }
     }
+    private static final ExecutorService keyGenExecutor = Executors.newFixedThreadPool(4);
+    private static KeyPairGenerator cachedKeyGen;
 
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody Advogado advogado, BindingResult result) {
+    static {
         try {
-            // Validações existentes
-            if (advogadoService.existsByEmail(advogado.getEmail())) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Email já está em uso.");
-            }
-            if (result.hasErrors()) {
-                // ... lógica de validação existente ...
-            }
-
-            // Gerar par de chaves RSA 4096
-            KeyPair keyPair = generateRSAKeyPair(4096);
-
-            // Converter chave pública para formato armazenável (X.509)
-            byte[] publicKeyBytes = keyPair.getPublic().getEncoded();
-            advogado.setPublicKey(publicKeyBytes); // Armazena no banco
-
-            // Salvar advogado (sem chave privada)
-            Advogado savedAdvogado = advogadoService.salvarAdvogado(advogado);
-
-            // Converter chave privada para Base64 para envio
-            String privateKeyBase64 = Base64.getEncoder().encodeToString(
-                    keyPair.getPrivate().getEncoded() // Formato PKCS#8
-            );
-
-            // Retornar resposta com chave privada (APENAS NESTE MOMENTO)
-            return ResponseEntity.ok(
-                    new AdvogadoRegistrationResponse(
-                            savedAdvogado,
-                            privateKeyBase64
-                    )
-            );
-
+            cachedKeyGen = KeyPairGenerator.getInstance("RSA");
+            cachedKeyGen.initialize(2048); // Reduza para 2048 para testes
         } catch (NoSuchAlgorithmException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Erro ao gerar chaves: " + e.getMessage());
+            throw new RuntimeException("Failed to initialize KeyPairGenerator", e);
         }
     }
 
-    private KeyPair generateRSAKeyPair(int keySize) throws NoSuchAlgorithmException {
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-        keyGen.initialize(keySize);
-        return keyGen.generateKeyPair();
+    @PostMapping("/register")
+    public CompletableFuture<ResponseEntity<?>> registerAsync(@Valid @RequestBody Advogado advogado, BindingResult result) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                if (advogadoService.existsByEmail(advogado.getEmail())) {
+                    return ResponseEntity.status(HttpStatus.CONFLICT).body("Email já está em uso.");
+                }
+
+                // Geração assíncrona de chaves
+                KeyPair keyPair = generateRSAKeyPairAsync(2048).get();
+
+                byte[] publicKeyBytes = keyPair.getPublic().getEncoded();
+                advogado.setPublicKey(publicKeyBytes);
+
+                Advogado savedAdvogado = advogadoService.salvarAdvogado(advogado);
+
+                String privateKeyBase64 = Base64.getEncoder().encodeToString(
+                        keyPair.getPrivate().getEncoded()
+                );
+
+                return ResponseEntity.ok(
+                        new AdvogadoRegistrationResponse(savedAdvogado, privateKeyBase64)
+                );
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body("Erro no registro: " + e.getMessage());
+            }
+        }, keyGenExecutor);
+    }
+
+    private static CompletableFuture<KeyPair> generateRSAKeyPairAsync(int keySize) {
+        return CompletableFuture.supplyAsync(() -> {
+            synchronized (cachedKeyGen) {
+                if (cachedKeyGen.getAlgorithm().equals("RSA")) {
+                    cachedKeyGen.initialize(keySize);
+                }
+                return cachedKeyGen.generateKeyPair();
+            }
+        }, keyGenExecutor);
     }
 
     // Classe DTO para resposta de registro
