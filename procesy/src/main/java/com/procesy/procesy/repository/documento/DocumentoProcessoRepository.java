@@ -1,7 +1,9 @@
 package com.procesy.procesy.repository.documento;
 
 
+import com.procesy.procesy.dto.DocumentoProcessoDTO;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,11 +13,10 @@ import java.util.Optional;
 
 @Repository
 public interface DocumentoProcessoRepository extends JpaRepository<DocumentoProcesso, Long> {
-    @Query("SELECT DISTINCT dp FROM DocumentoProcesso dp " +
-            "LEFT JOIN FETCH dp.procuracoes " +
-            "LEFT JOIN FETCH dp.peticoesIniciais " +
-            "LEFT JOIN FETCH dp.documentosComplementares " +
-            "WHERE dp.processo.id = :processoId")
-    Optional<DocumentoProcesso> findByProcessoIdWithDocuments(@Param("processoId") Long processoId);
+    @Query("select new com.procesy.procesy.dto.DocumentoProcessoDTO(" +
+            "dp.id, dp.processo.id, dp.statusContrato, dp.statusProcuracoes, " +
+            "dp.statusPeticoesIniciais, dp.statusDocumentosComplementares) " +
+            "from DocumentoProcesso dp where dp.processo.id = :processoId")
+    Optional<DocumentoProcessoDTO> findDocumentoProcessoDTOByProcessoId(@Param("processoId") Long processoId);
 
 }

@@ -30,20 +30,30 @@ import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 @Service
 public class DocumentoProcessoService {
 
-    @Autowired private ProcessoRepository processoRepository;
-    @Autowired private DocumentoProcessoRepository documentoProcessoRepository;
-    @Autowired private ProcuracaoRepository procuracaoRepository;
-    @Autowired private PeticaoInicialRepository peticaoInicialRepository;
-    @Autowired private DocumentoComplementarRepository documentoComplementarRepository;
-    @Autowired private ContratoRepository contratoRepository;
+    @Autowired
+    private ProcessoRepository processoRepository;
+    @Autowired
+    private DocumentoProcessoRepository documentoProcessoRepository;
+    @Autowired
+    private ProcuracaoRepository procuracaoRepository;
+    @Autowired
+    private PeticaoInicialRepository peticaoInicialRepository;
+    @Autowired
+    private DocumentoComplementarRepository documentoComplementarRepository;
+    @Autowired
+    private ContratoRepository contratoRepository;
 
     @Transactional
     public void adicionarDocumentosAoProcesso(Long processoId,
@@ -55,10 +65,12 @@ public class DocumentoProcessoService {
         Processo processo = processoRepository.findById(processoId)
                 .orElseThrow(() -> new IllegalArgumentException("Processo não encontrado"));
 
-
         // Obtém a chave pública do advogado associado ao processo
         byte[] publicKeyBytes = processo.getAdvogado().getPublicKey();
-        PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(publicKeyBytes));DocumentoProcesso documentoProcesso = initializeDocumentoProcesso(processo);
+        PublicKey publicKey = KeyFactory.getInstance("RSA")
+                .generatePublic(new X509EncodedKeySpec(publicKeyBytes));
+
+        DocumentoProcesso documentoProcesso = initializeDocumentoProcesso(processo);
 
         if (!procuracoesFiles.isEmpty()) {
             processarDocumentos(procuracoesFiles, publicKey, documentoProcesso, "Procuracao");
@@ -92,26 +104,75 @@ public class DocumentoProcessoService {
         documentoProcesso.getDocumentosComplementares().clear();
         documentoProcesso.getContratos().clear();
     }
-    @Async
-    protected void processarDocumentos(List<MultipartFile> files,
-                                     PublicKey publicKey,
-                                     DocumentoProcesso documentoProcesso,
-                                     String tipoDocumento) throws Exception {
-        for (MultipartFile file : files) {
-            FileCryptoUtil.EncryptedFileData encryptedData =
-                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
 
-            switch (tipoDocumento) {
-                case "Procuracao":
-                    createAndAddProcuracao(documentoProcesso, encryptedData, file);
-                    break;
-                case "PeticaoInicial":
-                    createAndAddPeticao(documentoProcesso, encryptedData, file);
-                    break;
-                case "DocumentoComplementar":
-                    createAndAddDocumentoComplementar(documentoProcesso, encryptedData, file);
-                    break;
+    @Async("fileTaskExecutor")
+    public void processarDocumentos(List<MultipartFile> files,
+                                    PublicKey publicKey,
+                                    DocumentoProcesso documentoProcesso,
+                                    String tipoDocumento) {
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            List<Future<?>> futures = files.stream().map(file -> executor.submit(() -> {
+                try {
+                    FileCryptoUtil.EncryptedFileData encryptedData =
+                            FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+
+                    // Cria e adiciona a entidade de documento de acordo com o tipo
+                    criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
+                } catch (Exception e) {
+                    // Realiza o tratamento de erro (ex.: log da exceção)
+                    e.printStackTrace();
+                }
+            })).collect(Collectors.toList());
+
+            // Aguarda a conclusão de todas as tarefas
+            for (Future<?> future : futures) {
+                future.get();
             }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            executor.shutdown();
+        }
+        // Realiza a inserção em lote após o processamento dos documentos
+        salvarDocumentosEmLote(documentoProcesso, tipoDocumento);
+    }
+
+    /**
+     * Identifica o tipo de documento e chama o método responsável pela sua criação.
+     */
+    private void criarEntidadeDocumento(FileCryptoUtil.EncryptedFileData encryptedData,
+                                        MultipartFile file,
+                                        String tipoDocumento,
+                                        DocumentoProcesso documentoProcesso) {
+        switch (tipoDocumento) {
+            case "Procuracao":
+                createAndAddProcuracao(documentoProcesso, encryptedData, file);
+                break;
+            case "PeticaoInicial":
+                createAndAddPeticao(documentoProcesso, encryptedData, file);
+                break;
+            case "DocumentoComplementar":
+                createAndAddDocumentoComplementar(documentoProcesso, encryptedData, file);
+                break;
+            default:
+                throw new IllegalArgumentException("Tipo de documento inválido: " + tipoDocumento);
+        }
+    }
+
+    private void salvarDocumentosEmLote(DocumentoProcesso documentoProcesso, String tipoDocumento) {
+        switch(tipoDocumento) {
+            case "Procuracao":
+                procuracaoRepository.saveAll(documentoProcesso.getProcuracoes());
+                break;
+            case "PeticaoInicial":
+                peticaoInicialRepository.saveAll(documentoProcesso.getPeticoesIniciais());
+                break;
+            case "DocumentoComplementar":
+                documentoComplementarRepository.saveAll(documentoProcesso.getDocumentosComplementares());
+                break;
+            default:
+                throw new IllegalArgumentException("Tipo de documento não suportado");
         }
     }
 
@@ -138,8 +199,8 @@ public class DocumentoProcessoService {
 
     @Async
     protected void createAndAddProcuracao(DocumentoProcesso documentoProcesso,
-                                        FileCryptoUtil.EncryptedFileData data,
-                                        MultipartFile file) {
+                                          FileCryptoUtil.EncryptedFileData data,
+                                          MultipartFile file) {
         Procuracao procuracao = new Procuracao(
                 data.getEncryptedData(),
                 file.getOriginalFilename(),
@@ -150,10 +211,11 @@ public class DocumentoProcessoService {
         procuracao.setDocumentoProcesso(documentoProcesso);
         documentoProcesso.getProcuracoes().add(procuracao);
     }
+
     @Async
     protected void createAndAddPeticao(DocumentoProcesso documentoProcesso,
-                                     FileCryptoUtil.EncryptedFileData data,
-                                     MultipartFile file) {
+                                       FileCryptoUtil.EncryptedFileData data,
+                                       MultipartFile file) {
         PeticaoInicial peticao = new PeticaoInicial(
                 data.getEncryptedData(),
                 file.getOriginalFilename(),
@@ -164,10 +226,11 @@ public class DocumentoProcessoService {
         peticao.setDocumentoProcesso(documentoProcesso);
         documentoProcesso.getPeticoesIniciais().add(peticao);
     }
+
     @Async
     protected void createAndAddDocumentoComplementar(DocumentoProcesso documentoProcesso,
-                                                   FileCryptoUtil.EncryptedFileData data,
-                                                   MultipartFile file) {
+                                                     FileCryptoUtil.EncryptedFileData data,
+                                                     MultipartFile file) {
         DocumentoComplementar documento = new DocumentoComplementar(
                 data.getEncryptedData(),
                 file.getOriginalFilename(),
@@ -178,6 +241,8 @@ public class DocumentoProcessoService {
         documento.setDocumentoProcesso(documentoProcesso);
         documentoProcesso.getDocumentosComplementares().add(documento);
     }
+
+    // Métodos para obtenção e descriptografia dos documentos
 
     public Procuracao getProcuracaoById(Long procuracaoId) throws Exception {
         Procuracao procuracao = procuracaoRepository.findById(procuracaoId)
@@ -219,7 +284,6 @@ public class DocumentoProcessoService {
             Procuracao p = (Procuracao) documento;
             return new FileCryptoUtil.EncryptedFileData(p.getArquivo(), p.getEncryptedKey(), p.getIv());
         }
-        // Implementar para outros tipos de documentos
         if (documento instanceof PeticaoInicial) {
             PeticaoInicial p = (PeticaoInicial) documento;
             return new FileCryptoUtil.EncryptedFileData(p.getArquivo(), p.getEncryptedKey(), p.getIv());
@@ -243,7 +307,6 @@ public class DocumentoProcessoService {
             decrypted.setId(p.getId());
             return (T) decrypted;
         }
-        // Implementar para outros tipos de documentos
         if (original instanceof PeticaoInicial) {
             PeticaoInicial p = (PeticaoInicial) original;
             PeticaoInicial decrypted = new PeticaoInicial(decryptedData, p.getNomeArquivo(), p.getTipoArquivo());
@@ -267,22 +330,15 @@ public class DocumentoProcessoService {
 
     @Transactional
     public DocumentoProcessoDTO getDocumentosDoProcessoDTO(Long processoId) {
-        DocumentoProcesso documentoProcesso = documentoProcessoRepository.findByProcessoIdWithDocuments(processoId)
+        // Consulta principal que carrega somente os metadados do DocumentoProcesso
+        DocumentoProcessoDTO dto = documentoProcessoRepository.findDocumentoProcessoDTOByProcessoId(processoId)
                 .orElseThrow(() -> new IllegalArgumentException("DocumentoProcesso não encontrado"));
 
-        DocumentoProcessoDTO dto = new DocumentoProcessoDTO();
-        dto.setId(documentoProcesso.getId());
-        dto.setProcessoId(documentoProcesso.getProcesso().getId());
-
-        dto.setStatusContrato(documentoProcesso.getStatusContrato());
-        dto.setStatusProcuracoes(documentoProcesso.getStatusProcuracoes());
-        dto.setStatusPeticoesIniciais(documentoProcesso.getStatusPeticoesIniciais());
-        dto.setStatusDocumentosComplementares(documentoProcesso.getStatusDocumentosComplementares());
-
-        dto.setContratos(mapContratos(documentoProcesso.getContratos()));
-        dto.setProcuracoes(mapProcuracoes(documentoProcesso.getProcuracoes()));
-        dto.setPeticoesIniciais(mapPeticoes(documentoProcesso.getPeticoesIniciais()));
-        dto.setDocumentosComplementares(mapDocumentosComplementares(documentoProcesso.getDocumentosComplementares()));
+        // Carrega as associações usando os métodos de projeção – sem os blobs
+        dto.setProcuracoes(new HashSet<>(procuracaoRepository.findProcuracoesByDocumentoProcessoId(dto.getId())));
+        dto.setPeticoesIniciais(new HashSet<>(peticaoInicialRepository.findPeticoesIniciaisByDocumentoProcessoId(dto.getId())));
+        dto.setDocumentosComplementares(new HashSet<>(documentoComplementarRepository.findDocumentosComplementaresByDocumentoProcessoId(dto.getId())));
+        dto.setContratos(new HashSet<>(contratoRepository.findContratosByDocumentoProcessoId(dto.getId())));
 
         return dto;
     }
@@ -292,21 +348,22 @@ public class DocumentoProcessoService {
                 .map(c -> new ContratoDTO(c.getId(), c.getNomeArquivo(), c.getTipoArquivo()))
                 .collect(Collectors.toSet());
     }
+
     private Set<ProcuracaoDTO> mapProcuracoes(Set<Procuracao> procuracoes) {
         return procuracoes.stream()
                 .map(p -> new ProcuracaoDTO(p.getId(), p.getNomeArquivo(), p.getTipoArquivo()))
                 .collect(Collectors.toSet());
     }
+
     private Set<PeticaoInicialDTO> mapPeticoes(Set<PeticaoInicial> peticoes) {
         return peticoes.stream()
                 .map(p -> new PeticaoInicialDTO(p.getId(), p.getNomeArquivo(), p.getTipoArquivo()))
                 .collect(Collectors.toSet());
     }
+
     private Set<DocumentoComplementarDTO> mapDocumentosComplementares(Set<DocumentoComplementar> documentos) {
         return documentos.stream()
                 .map(d -> new DocumentoComplementarDTO(d.getId(), d.getNomeArquivo(), d.getTipoArquivo()))
                 .collect(Collectors.toSet());
     }
-
-
 }

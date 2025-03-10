@@ -21,4 +21,15 @@ public class DocumentoProcessoDTO {
     private Set<PeticaoInicialDTO> peticoesIniciais;
     private Set<DocumentoComplementarDTO> documentosComplementares;
     private Set<ContratoDTO> contratos; // Se desejar incluir contratos
+
+    public DocumentoProcessoDTO(Long id, Long processoId, String statusContrato,
+                                String statusProcuracoes, String statusPeticoesIniciais,
+                                String statusDocumentosComplementares) {
+        this.id = id;
+        this.processoId = processoId;
+        this.statusContrato = statusContrato;
+        this.statusProcuracoes = statusProcuracoes;
+        this.statusPeticoesIniciais = statusPeticoesIniciais;
+        this.statusDocumentosComplementares = statusDocumentosComplementares;
+    }
 }

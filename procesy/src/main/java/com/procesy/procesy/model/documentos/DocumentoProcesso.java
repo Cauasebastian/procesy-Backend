@@ -14,7 +14,9 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@Table(name = "documento_processo")
+@Table(name = "documento_processo", indexes = {
+        @Index(name = "idx_processo_id", columnList = "processo_id")
+})
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class DocumentoProcesso {
