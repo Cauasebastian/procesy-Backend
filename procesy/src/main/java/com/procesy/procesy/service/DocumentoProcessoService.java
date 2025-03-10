@@ -20,20 +20,20 @@ import com.procesy.procesy.repository.documento.ProcuracaoRepository;
 import com.procesy.procesy.security.Encription.FileCryptoUtil;
 import com.procesy.procesy.security.Encription.PrivateKeyHolder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.transaction.Transactional;
-import java.io.IOException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -55,6 +55,9 @@ public class DocumentoProcessoService {
     @Autowired
     private ContratoRepository contratoRepository;
 
+    // Executor global para processamento paralelo. Ajuste o tamanho do pool conforme os recursos disponíveis.
+    private final ExecutorService globalExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+
     @Transactional
     public void adicionarDocumentosAoProcesso(Long processoId,
                                               List<MultipartFile> procuracoesFiles,
@@ -72,17 +75,32 @@ public class DocumentoProcessoService {
 
         DocumentoProcesso documentoProcesso = initializeDocumentoProcesso(processo);
 
+        List<Future<?>> futures = new ArrayList<>();
+
         if (!procuracoesFiles.isEmpty()) {
-            processarDocumentos(procuracoesFiles, publicKey, documentoProcesso, "Procuracao");
+            futures.add(globalExecutor.submit(() ->
+                    processarDocumentos(procuracoesFiles, publicKey, documentoProcesso, "Procuracao")
+            ));
         }
         if (!peticoesIniciaisFiles.isEmpty()) {
-            processarDocumentos(peticoesIniciaisFiles, publicKey, documentoProcesso, "PeticaoInicial");
+            futures.add(globalExecutor.submit(() ->
+                    processarDocumentos(peticoesIniciaisFiles, publicKey, documentoProcesso, "PeticaoInicial")
+            ));
         }
         if (!documentosComplementaresFiles.isEmpty()) {
-            processarDocumentos(documentosComplementaresFiles, publicKey, documentoProcesso, "DocumentoComplementar");
+            futures.add(globalExecutor.submit(() ->
+                    processarDocumentos(documentosComplementaresFiles, publicKey, documentoProcesso, "DocumentoComplementar")
+            ));
         }
         if (!contratosFiles.isEmpty()) {
-            processarContratos(contratosFiles, publicKey, documentoProcesso);
+            futures.add(globalExecutor.submit(() ->
+                    processarContratos(contratosFiles, publicKey, documentoProcesso)
+            ));
+        }
+
+        // Aguarda a conclusão de todas as tarefas (pode-se adicionar timeout, se necessário)
+        for (Future<?> future : futures) {
+            future.get();
         }
 
         documentoProcessoRepository.save(documentoProcesso);
@@ -105,37 +123,53 @@ public class DocumentoProcessoService {
         documentoProcesso.getContratos().clear();
     }
 
-    @Async("fileTaskExecutor")
-    public void processarDocumentos(List<MultipartFile> files,
-                                    PublicKey publicKey,
-                                    DocumentoProcesso documentoProcesso,
-                                    String tipoDocumento) {
-        ExecutorService executor = Executors.newFixedThreadPool(4);
+    // Processamento paralelo dentro de cada tipo de documento
+    private void processarDocumentos(List<MultipartFile> files,
+                                     PublicKey publicKey,
+                                     DocumentoProcesso documentoProcesso,
+                                     String tipoDocumento) {
         try {
-            List<Future<?>> futures = files.stream().map(file -> executor.submit(() -> {
-                try {
-                    FileCryptoUtil.EncryptedFileData encryptedData =
-                            FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+            List<CompletableFuture<Void>> futures = files.stream()
+                    .map(file -> CompletableFuture.runAsync(() -> {
+                        try {
+                            FileCryptoUtil.EncryptedFileData encryptedData =
+                                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+                            criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }, globalExecutor))
+                    .collect(Collectors.toList());
 
-                    // Cria e adiciona a entidade de documento de acordo com o tipo
-                    criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
-                } catch (Exception e) {
-                    // Realiza o tratamento de erro (ex.: log da exceção)
-                    e.printStackTrace();
-                }
-            })).collect(Collectors.toList());
-
-            // Aguarda a conclusão de todas as tarefas
-            for (Future<?> future : futures) {
-                future.get();
-            }
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            salvarDocumentosEmLote(documentoProcesso, tipoDocumento);
         } catch (Exception ex) {
             ex.printStackTrace();
-        } finally {
-            executor.shutdown();
         }
-        // Realiza a inserção em lote após o processamento dos documentos
-        salvarDocumentosEmLote(documentoProcesso, tipoDocumento);
+    }
+
+    // Processamento paralelo para contratos
+    private void processarContratos(List<MultipartFile> files,
+                                    PublicKey publicKey,
+                                    DocumentoProcesso documentoProcesso) {
+        try {
+            List<CompletableFuture<Void>> futures = files.stream()
+                    .map(file -> CompletableFuture.runAsync(() -> {
+                        try {
+                            FileCryptoUtil.EncryptedFileData encryptedData =
+                                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+                            criarEntidadeContrato(encryptedData, file, documentoProcesso);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }, globalExecutor))
+                    .collect(Collectors.toList());
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            contratoRepository.saveAll(documentoProcesso.getContratos());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 
     /**
@@ -160,8 +194,10 @@ public class DocumentoProcessoService {
         }
     }
 
-    private void salvarDocumentosEmLote(DocumentoProcesso documentoProcesso, String tipoDocumento) {
-        switch(tipoDocumento) {
+    // Operação de escrita em lote com nova transação
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected void salvarDocumentosEmLote(DocumentoProcesso documentoProcesso, String tipoDocumento) {
+        switch (tipoDocumento) {
             case "Procuracao":
                 procuracaoRepository.saveAll(documentoProcesso.getProcuracoes());
                 break;
@@ -176,31 +212,26 @@ public class DocumentoProcessoService {
         }
     }
 
-    @Async
-    protected void processarContratos(List<MultipartFile> files,
-                                      PublicKey publicKey,
-                                      DocumentoProcesso documentoProcesso) throws Exception {
-        for (MultipartFile file : files) {
-            FileCryptoUtil.EncryptedFileData encryptedData =
-                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
-
-            Contrato contrato = new Contrato(
-                    encryptedData.getEncryptedData(),
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    documentoProcesso.getStatusContrato()
-            );
-            contrato.setEncryptedKey(encryptedData.getEncryptedKey());
-            contrato.setIv(encryptedData.getIv());
-            contrato.setDocumentoProcesso(documentoProcesso);
-            documentoProcesso.getContratos().add(contrato);
-        }
+    private void criarEntidadeContrato(FileCryptoUtil.EncryptedFileData encryptedData,
+                                       MultipartFile file,
+                                       DocumentoProcesso documentoProcesso) {
+        Contrato contrato = new Contrato(
+                encryptedData.getEncryptedData(),
+                file.getOriginalFilename(),
+                file.getContentType(),
+                documentoProcesso.getStatusContrato()
+        );
+        contrato.setEncryptedKey(encryptedData.getEncryptedKey());
+        contrato.setIv(encryptedData.getIv());
+        contrato.setDocumentoProcesso(documentoProcesso);
+        documentoProcesso.getContratos().add(contrato);
     }
 
-    @Async
-    protected void createAndAddProcuracao(DocumentoProcesso documentoProcesso,
-                                          FileCryptoUtil.EncryptedFileData data,
-                                          MultipartFile file) {
+    // Métodos para criação dos diferentes tipos de documentos
+
+    private void createAndAddProcuracao(DocumentoProcesso documentoProcesso,
+                                        FileCryptoUtil.EncryptedFileData data,
+                                        MultipartFile file) {
         Procuracao procuracao = new Procuracao(
                 data.getEncryptedData(),
                 file.getOriginalFilename(),
@@ -212,10 +243,9 @@ public class DocumentoProcessoService {
         documentoProcesso.getProcuracoes().add(procuracao);
     }
 
-    @Async
-    protected void createAndAddPeticao(DocumentoProcesso documentoProcesso,
-                                       FileCryptoUtil.EncryptedFileData data,
-                                       MultipartFile file) {
+    private void createAndAddPeticao(DocumentoProcesso documentoProcesso,
+                                     FileCryptoUtil.EncryptedFileData data,
+                                     MultipartFile file) {
         PeticaoInicial peticao = new PeticaoInicial(
                 data.getEncryptedData(),
                 file.getOriginalFilename(),
@@ -227,10 +257,9 @@ public class DocumentoProcessoService {
         documentoProcesso.getPeticoesIniciais().add(peticao);
     }
 
-    @Async
-    protected void createAndAddDocumentoComplementar(DocumentoProcesso documentoProcesso,
-                                                     FileCryptoUtil.EncryptedFileData data,
-                                                     MultipartFile file) {
+    private void createAndAddDocumentoComplementar(DocumentoProcesso documentoProcesso,
+                                                   FileCryptoUtil.EncryptedFileData data,
+                                                   MultipartFile file) {
         DocumentoComplementar documento = new DocumentoComplementar(
                 data.getEncryptedData(),
                 file.getOriginalFilename(),
@@ -330,11 +359,9 @@ public class DocumentoProcessoService {
 
     @Transactional
     public DocumentoProcessoDTO getDocumentosDoProcessoDTO(Long processoId) {
-        // Consulta principal que carrega somente os metadados do DocumentoProcesso
         DocumentoProcessoDTO dto = documentoProcessoRepository.findDocumentoProcessoDTOByProcessoId(processoId)
                 .orElseThrow(() -> new IllegalArgumentException("DocumentoProcesso não encontrado"));
 
-        // Carrega as associações usando os métodos de projeção – sem os blobs
         dto.setProcuracoes(new HashSet<>(procuracaoRepository.findProcuracoesByDocumentoProcessoId(dto.getId())));
         dto.setPeticoesIniciais(new HashSet<>(peticaoInicialRepository.findPeticoesIniciaisByDocumentoProcessoId(dto.getId())));
         dto.setDocumentosComplementares(new HashSet<>(documentoComplementarRepository.findDocumentosComplementaresByDocumentoProcessoId(dto.getId())));
