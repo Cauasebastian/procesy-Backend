@@ -20,6 +20,7 @@ import com.procesy.procesy.repository.documento.ProcuracaoRepository;
 import com.procesy.procesy.security.Encription.FileCryptoUtil;
 import com.procesy.procesy.security.Encription.PrivateKeyHolder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -59,12 +60,18 @@ public class DocumentoProcessoService {
         byte[] publicKeyBytes = processo.getAdvogado().getPublicKey();
         PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(publicKeyBytes));DocumentoProcesso documentoProcesso = initializeDocumentoProcesso(processo);
 
-        clearExistingDocuments(documentoProcesso);
-
-        processarDocumentos(procuracoesFiles, publicKey, documentoProcesso, "Procuracao");
-        processarDocumentos(peticoesIniciaisFiles, publicKey, documentoProcesso, "PeticaoInicial");
-        processarDocumentos(documentosComplementaresFiles, publicKey, documentoProcesso, "DocumentoComplementar");
-        processarContratos(contratosFiles, publicKey, documentoProcesso);
+        if (!procuracoesFiles.isEmpty()) {
+            processarDocumentos(procuracoesFiles, publicKey, documentoProcesso, "Procuracao");
+        }
+        if (!peticoesIniciaisFiles.isEmpty()) {
+            processarDocumentos(peticoesIniciaisFiles, publicKey, documentoProcesso, "PeticaoInicial");
+        }
+        if (!documentosComplementaresFiles.isEmpty()) {
+            processarDocumentos(documentosComplementaresFiles, publicKey, documentoProcesso, "DocumentoComplementar");
+        }
+        if (!contratosFiles.isEmpty()) {
+            processarContratos(contratosFiles, publicKey, documentoProcesso);
+        }
 
         documentoProcessoRepository.save(documentoProcesso);
     }
@@ -85,8 +92,8 @@ public class DocumentoProcessoService {
         documentoProcesso.getDocumentosComplementares().clear();
         documentoProcesso.getContratos().clear();
     }
-
-    private void processarDocumentos(List<MultipartFile> files,
+    @Async
+    protected void processarDocumentos(List<MultipartFile> files,
                                      PublicKey publicKey,
                                      DocumentoProcesso documentoProcesso,
                                      String tipoDocumento) throws Exception {
@@ -108,9 +115,10 @@ public class DocumentoProcessoService {
         }
     }
 
-    private void processarContratos(List<MultipartFile> files,
-                                    PublicKey publicKey,
-                                    DocumentoProcesso documentoProcesso) throws Exception {
+    @Async
+    protected void processarContratos(List<MultipartFile> files,
+                                      PublicKey publicKey,
+                                      DocumentoProcesso documentoProcesso) throws Exception {
         for (MultipartFile file : files) {
             FileCryptoUtil.EncryptedFileData encryptedData =
                     FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
@@ -128,7 +136,8 @@ public class DocumentoProcessoService {
         }
     }
 
-    private void createAndAddProcuracao(DocumentoProcesso documentoProcesso,
+    @Async
+    protected void createAndAddProcuracao(DocumentoProcesso documentoProcesso,
                                         FileCryptoUtil.EncryptedFileData data,
                                         MultipartFile file) {
         Procuracao procuracao = new Procuracao(
@@ -141,8 +150,8 @@ public class DocumentoProcessoService {
         procuracao.setDocumentoProcesso(documentoProcesso);
         documentoProcesso.getProcuracoes().add(procuracao);
     }
-
-    private void createAndAddPeticao(DocumentoProcesso documentoProcesso,
+    @Async
+    protected void createAndAddPeticao(DocumentoProcesso documentoProcesso,
                                      FileCryptoUtil.EncryptedFileData data,
                                      MultipartFile file) {
         PeticaoInicial peticao = new PeticaoInicial(
@@ -155,8 +164,8 @@ public class DocumentoProcessoService {
         peticao.setDocumentoProcesso(documentoProcesso);
         documentoProcesso.getPeticoesIniciais().add(peticao);
     }
-
-    private void createAndAddDocumentoComplementar(DocumentoProcesso documentoProcesso,
+    @Async
+    protected void createAndAddDocumentoComplementar(DocumentoProcesso documentoProcesso,
                                                    FileCryptoUtil.EncryptedFileData data,
                                                    MultipartFile file) {
         DocumentoComplementar documento = new DocumentoComplementar(

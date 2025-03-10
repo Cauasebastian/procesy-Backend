@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 @RestController
@@ -37,23 +38,29 @@ public class DocumentoProcessoController {
     @PostMapping("/upload/{processoId}")
     public ResponseEntity<String> uploadDocumentosProcesso(
             @PathVariable Long processoId,
-            @RequestParam("procuracoes") List<MultipartFile> procuracoesFiles,
-            @RequestParam("peticoesIniciais") List<MultipartFile> peticoesIniciaisFiles,
-            @RequestParam("documentosComplementares") List<MultipartFile> documentosComplementaresFiles,
-            @RequestParam("contratos") List<MultipartFile> contratosFiles // Novo parâmetro para contratos
+            @RequestParam(value = "procuracoes", required = false) List<MultipartFile> procuracoesFiles,
+            @RequestParam(value = "peticoesIniciais", required = false) List<MultipartFile> peticoesIniciaisFiles,
+            @RequestParam(value = "documentosComplementares", required = false) List<MultipartFile> documentosComplementaresFiles,
+            @RequestParam(value = "contratos", required = false) List<MultipartFile> contratosFiles
     ) {
-        System.out.println("Recebendo arquivos...");
+        // Garante que as listas nunca sejam nulas
+        procuracoesFiles = procuracoesFiles != null ? procuracoesFiles : Collections.emptyList();
+        peticoesIniciaisFiles = peticoesIniciaisFiles != null ? peticoesIniciaisFiles : Collections.emptyList();
+        documentosComplementaresFiles = documentosComplementaresFiles != null ? documentosComplementaresFiles : Collections.emptyList();
+        contratosFiles = contratosFiles != null ? contratosFiles : Collections.emptyList();
+
         try {
-            documentoProcessoService.adicionarDocumentosAoProcesso(processoId,
-                    procuracoesFiles, peticoesIniciaisFiles, documentosComplementaresFiles, contratosFiles);
-            System.out.println("Documentos enviados com sucesso.");
+            documentoProcessoService.adicionarDocumentosAoProcesso(
+                    processoId,
+                    procuracoesFiles,
+                    peticoesIniciaisFiles,
+                    documentosComplementaresFiles,
+                    contratosFiles
+            );
             return ResponseEntity.status(HttpStatus.CREATED).body("Documentos enviados com sucesso.");
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erro ao processar os arquivos.");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Erro inesperado: " + e.getMessage());
+        }
+        catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Erro: " + e.getMessage());
         }
     }
 
