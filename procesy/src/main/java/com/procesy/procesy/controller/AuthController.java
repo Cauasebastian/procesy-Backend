@@ -3,6 +3,7 @@ package com.procesy.procesy.controller;
 import com.procesy.procesy.security.JwtUtil;
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.service.AdvogadoService;
+import com.procesy.procesy.service.OpenAIAssistantService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,11 +30,13 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final AdvogadoService advogadoService;
+    private final OpenAIAssistantService openAIAssistantService;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtUtil jwtUtil, AdvogadoService advogadoService) {
+    public AuthController(AuthenticationManager authenticationManager, JwtUtil jwtUtil, AdvogadoService advogadoService, OpenAIAssistantService openAIAssistantService) {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
         this.advogadoService = advogadoService;
+        this.openAIAssistantService = openAIAssistantService;
     }
     //HELLO
     @GetMapping("/hello")
@@ -82,7 +85,20 @@ public class AuthController {
                 byte[] publicKeyBytes = keyPair.getPublic().getEncoded();
                 advogado.setPublicKey(publicKeyBytes);
 
+                // Dentro do método registerAsync de AuthController, logo após salvar o Advogado:
                 Advogado savedAdvogado = advogadoService.salvarAdvogado(advogado);
+
+                // Obter (ou criar) o vector store para esse advogado
+                String vectorStoreId = openAIAssistantService.getOrCreateVectorStore(advogado.getNome());
+                savedAdvogado.setVectorStoreId(vectorStoreId);
+
+// Criação do Assistant exclusivo para o advogado
+                String assistantId = openAIAssistantService.createAssistant(advogado.getNome(), vectorStoreId);
+                savedAdvogado.setAssistantId(assistantId);
+
+
+// Atualizar o advogado com os novos IDs (caso seu serviço atualize o registro)
+                advogadoService.atualizarAdvogado(savedAdvogado);
 
                 String privateKeyBase64 = Base64.getEncoder().encodeToString(
                         keyPair.getPrivate().getEncoded()

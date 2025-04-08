@@ -19,11 +19,16 @@ public class AdvogadoDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         Advogado advogado = advogadoRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
+                .orElseThrow(() -> {
+                    System.out.println("Advogado não encontrado para email: " + email);
+                    return new UsernameNotFoundException("Usuário não encontrado");
+                });
+        System.out.println("Advogado encontrado: " + advogado.getEmail() + " - senha: " + advogado.getSenha());
         return org.springframework.security.core.userdetails.User
                 .withUsername(advogado.getEmail())
                 .password(advogado.getSenha())
-                .roles("USER") // Pode adicionar mais roles se necessário
+                .roles("USER")
                 .build();
     }
+
 }

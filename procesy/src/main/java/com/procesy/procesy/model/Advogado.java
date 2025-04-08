@@ -42,6 +42,14 @@ public class Advogado {
     @Column(name = "public_key", nullable = false, columnDefinition = "MEDIUMBLOB")
     private byte[] publicKey;
 
+    // Novo campo para armazenar o ID do Assistant (criado via OpenAI Assistants API)
+    @Column(name = "assistant_id", unique = true)
+    private String assistantId;
+
+    // Opcional: campo para guardar o ID do vector store associado a esse advogado
+    @Column(name = "vector_store_id")
+    private String vectorStoreId;
+
 
     @OneToMany(mappedBy = "advogado", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Cliente> clientes = new ArrayList<>();
