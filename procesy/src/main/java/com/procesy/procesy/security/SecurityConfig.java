@@ -63,28 +63,36 @@ public class SecurityConfig {
             private final Cache<String, Bucket> ddosBuckets = Caffeine.newBuilder()
                     .expireAfterAccess(30, TimeUnit.MINUTES)
                     .build();
-
+    
             @Override
             protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
                     throws ServletException, IOException {
+    
+                // Libera imediatamente requisições OPTIONS (preflight)
+                if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    return;
+                }
+    
                 String ipAddress = request.getRemoteAddr();
-
+    
                 Bucket bucket = ddosBuckets.get(ipAddress, k ->
                         Bucket4j.builder()
                                 .addLimit(Bandwidth.classic(100, Refill.intervally(100, Duration.ofMinutes(1))))
                                 .build()
                 );
-
+    
                 if (!bucket.tryConsume(1)) {
                     response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                     response.getWriter().write("Limite global de requisições excedido.");
                     return;
                 }
+    
                 filterChain.doFilter(request, response);
             }
         };
     }
-
+    
     // Filtro de Login com Rate Limit Global
     @Bean
     public OncePerRequestFilter loginRateLimitFilter() {
@@ -172,21 +180,15 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigin));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of(
-                "Authorization",
-                "Content-Type",
-                "X-Requested-With",
-                "Accept",
-                "Origin",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"
-        ));
-        configuration.setAllowCredentials(true);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+            CorsConfiguration configuration = new CorsConfiguration();
+            configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+            configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+            configuration.setAllowedHeaders(List.of("*"));
+            configuration.setAllowCredentials(true);
+
+            UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+            source.registerCorsConfiguration("/**", configuration);
+            return source;
     }
+
 }
