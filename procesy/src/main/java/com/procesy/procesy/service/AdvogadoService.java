@@ -26,6 +26,10 @@ public class AdvogadoService {
         return advogadoRepository.save(advogado);
     }
 
+    public Advogado atualizarAdvogado(Advogado advogado) {
+        // Atualiza os campos sem recriptografar a senha
+        return advogadoRepository.save(advogado);
+    }
     public Optional<Advogado> findByEmail(String email) {
         return advogadoRepository.findByEmail(email);
     }
