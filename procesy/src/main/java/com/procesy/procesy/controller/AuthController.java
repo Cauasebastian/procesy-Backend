@@ -4,6 +4,7 @@ import com.procesy.procesy.security.JwtUtil;
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.service.AdvogadoService;
 import com.procesy.procesy.service.OpenAIAssistantService;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -72,6 +73,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
+    @Transactional
     public CompletableFuture<ResponseEntity<?>> registerAsync(@Valid @RequestBody Advogado advogado, BindingResult result) {
         return CompletableFuture.supplyAsync(() -> {
             try {

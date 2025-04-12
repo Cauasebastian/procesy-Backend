@@ -2,9 +2,12 @@ package com.procesy.procesy.service;
 
 // package com.procesy.procesy.service;
 import org.springframework.http.*;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class OpenAIAssistantService {
@@ -14,6 +17,21 @@ public class OpenAIAssistantService {
     // Remova o ASSISTANT_ID fixo, pois cada advogado terá o seu
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final Map<String, CacheEntry> threadCache = new ConcurrentHashMap<>();
+
+    private static class CacheEntry {
+        String threadId;
+        long createdAt;
+
+        CacheEntry(String threadId) {
+            this.threadId = threadId;
+            this.createdAt = System.currentTimeMillis();
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() - createdAt > TimeUnit.DAYS.toMillis(2);
+        }
+    }
 
     private HttpHeaders getHeaders() {
         HttpHeaders headers = new HttpHeaders();
@@ -28,7 +46,7 @@ public class OpenAIAssistantService {
     public String createAssistant(String advogadoNome, String vectorStoreId) {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("name", "Assistente de " + advogadoNome);
-        requestBody.put("model", "gpt-3.5-turbo"); // Modelo atualizado
+        requestBody.put("model", "gpt-4o-mini");
         requestBody.put("instructions", "Você é um assistente jurídico inteligente integrado ao Procesy, um software especializado em gerenciamento de processos jurídicos para advogados. Sua missão é facilitar a rotina dos usuários respondendo dúvidas, organizando tarefas, monitorando prazos, auxiliando na gestão de documentos e sugerindo boas práticas jurídicas.\n" +
                 "\n" +
                 "Contexto:\n" +
@@ -78,15 +96,13 @@ public class OpenAIAssistantService {
 
         return (String) response.get("id");
     }
+
     // Método para perguntar ao assistente
     public String askAssistant(String question, String assistantId) throws InterruptedException {
-        // 1 - Criar thread
-        Map<String, Object> threadBody = new HashMap<>();
-        HttpEntity<Map<String, Object>> threadRequest = new HttpEntity<>(threadBody, getHeaders());
-        Map<String, Object> threadResponse = restTemplate.postForObject(BASE_URL + "/threads", threadRequest, Map.class);
-        String threadId = (String) threadResponse.get("id");
+        // 1 - Obter ou criar thread do cache
+        String threadId = getOrCreateThreadId(assistantId);
 
-        // 2 - Adicionar mensagem SEM anexar arquivos (já está no vector store)
+        // 2 - Adicionar mensagem à thread existente
         Map<String, Object> messageBody = Map.of(
                 "role", "user",
                 "content", question
@@ -94,12 +110,9 @@ public class OpenAIAssistantService {
         HttpEntity<Map<String, Object>> messageRequest = new HttpEntity<>(messageBody, getHeaders());
         restTemplate.postForObject(BASE_URL + "/threads/" + threadId + "/messages", messageRequest, Map.class);
 
-        // 3 - Iniciar run sem especificar tools novamente (herda do assistant)
+        // 3 - Iniciar run (restante do método mantido)
         Map<String, Object> runBody = new HashMap<>();
         runBody.put("assistant_id", assistantId);
-
-        // Configuração adicional para incluir resultados da busca
-        runBody.put("additional_instructions", "Use apenas documentos do repositório jurídico cadastrado.");
 
         HttpEntity<Map<String, Object>> runRequest = new HttpEntity<>(runBody, getHeaders());
         Map<String, Object> runResponse = restTemplate.postForObject(BASE_URL + "/threads/" + threadId + "/runs", runRequest, Map.class);
@@ -130,8 +143,52 @@ public class OpenAIAssistantService {
                 new HttpEntity<>(getHeaders()),
                 Map.class
         );
-
         return processMessages((List<Map<String, Object>>) messagesResponse.getBody().get("data"));
+    }
+
+    // Novo método auxiliar para gerenciar o cache
+    private String getOrCreateThreadId(String assistantId) {
+        CacheEntry entry = threadCache.get(assistantId);
+
+        if (entry != null && !entry.isExpired()) {
+            return entry.threadId;
+        }
+
+        // Criar nova thread se expirada ou inexistente
+        Map<String, Object> threadBody = new HashMap<>();
+        HttpEntity<Map<String, Object>> threadRequest = new HttpEntity<>(threadBody, getHeaders());
+        Map<String, Object> threadResponse = restTemplate.postForObject(BASE_URL + "/threads", threadRequest, Map.class);
+        String newThreadId = (String) threadResponse.get("id");
+
+        threadCache.put(assistantId, new CacheEntry(newThreadId));
+        return newThreadId;
+    }
+
+    // Método de limpeza agendada
+    @Scheduled(fixedRate = 3600000) // Executa a cada hora
+    public void cleanupExpiredThreads() {
+        Iterator<Map.Entry<String, CacheEntry>> it = threadCache.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, CacheEntry> entry = it.next();
+            if (entry.getValue().isExpired()) {
+                deleteThreadFromOpenAI(entry.getValue().threadId);
+                it.remove();
+            }
+        }
+    }
+
+    // Método auxiliar para exclusão
+    private void deleteThreadFromOpenAI(String threadId) {
+        try {
+            restTemplate.exchange(
+                    BASE_URL + "/threads/" + threadId,
+                    HttpMethod.DELETE,
+                    new HttpEntity<>(getHeaders()),
+                    Void.class
+            );
+        } catch (Exception e) {
+            System.err.println("Erro ao excluir thread: " + e.getMessage());
+        }
     }
 
     // Novo método para processar as citações
@@ -187,6 +244,7 @@ public class OpenAIAssistantService {
 
         return response.toString();
     }
+
 
     // Novo método para obter nome do arquivo
     private String getFileName(String fileId) {
