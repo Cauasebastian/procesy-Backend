@@ -6,6 +6,7 @@ import com.procesy.procesy.model.documentos.DocumentoComplementar;
 import com.procesy.procesy.model.documentos.PeticaoInicial;
 import com.procesy.procesy.model.documentos.Procuracao;
 import com.procesy.procesy.service.DocumentoProcessoService;
+import com.procesy.procesy.service.OpenAIAssistantService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;

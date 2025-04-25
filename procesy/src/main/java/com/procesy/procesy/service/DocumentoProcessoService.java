@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -54,6 +55,9 @@ public class DocumentoProcessoService {
     private DocumentoComplementarRepository documentoComplementarRepository;
     @Autowired
     private ContratoRepository contratoRepository;
+
+    @Autowired
+    private OpenAIAssistantService openAIAssistantService;
 
     // Executor global para processamento paralelo. Ajuste o tamanho do pool conforme os recursos disponíveis.
     private final ExecutorService globalExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
@@ -123,32 +127,50 @@ public class DocumentoProcessoService {
         documentoProcesso.getContratos().clear();
     }
 
-    // Processamento paralelo dentro de cada tipo de documento
     private void processarDocumentos(List<MultipartFile> files,
                                      PublicKey publicKey,
                                      DocumentoProcesso documentoProcesso,
                                      String tipoDocumento) {
         try {
-            List<CompletableFuture<Void>> futures = files.stream()
-                    .map(file -> CompletableFuture.runAsync(() -> {
-                        try {
-                            FileCryptoUtil.EncryptedFileData encryptedData =
-                                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
-                            criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    }, globalExecutor))
-                    .collect(Collectors.toList());
+            Processo processo = documentoProcesso.getProcesso();
+            String advogadoNome = processo.getAdvogado().getNome();
 
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            // Obter Vector Store uma única vez
+            String vectorStoreId = openAIAssistantService.getOrCreateVectorStore(advogadoNome);
+
+            // Processar cada arquivo individualmente com tratamento de erro específico
+            for (MultipartFile file : files) {
+                try {
+                    byte[] fileBytes = file.getBytes();
+
+                    // 1. Criptografar e salvar localmente
+                    FileCryptoUtil.EncryptedFileData encryptedData =
+                            FileCryptoUtil.encryptFile(fileBytes, publicKey);
+                    criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
+                    System.out.println("Arquivo " + file.getOriginalFilename() + " processado com sucesso.");
+
+                    // 2. Upload para OpenAI Vector Store
+                    openAIAssistantService.uploadFileToVectorStore(
+                            file.getOriginalFilename(),
+                            fileBytes,
+                            vectorStoreId
+
+                    );
+                    System.out.println("Arquivo " + file.getOriginalFilename() + " enviado para o Vector Store.");
+                } catch (IOException e) {
+                    throw new RuntimeException("Erro ao ler arquivo " + file.getOriginalFilename(), e);
+                } catch (Exception e) {
+                    throw new RuntimeException("Erro no processamento do arquivo " + file.getOriginalFilename(), e);
+                }
+            }
+
+            // Salvar em lote após todos os processamentos
             salvarDocumentosEmLote(documentoProcesso, tipoDocumento);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            throw new RuntimeException("Erro no processamento de documentos: " + ex.getMessage(), ex);
         }
     }
 
-    // Processamento paralelo para contratos
     private void processarContratos(List<MultipartFile> files,
                                     PublicKey publicKey,
                                     DocumentoProcesso documentoProcesso) {
@@ -156,9 +178,20 @@ public class DocumentoProcessoService {
             List<CompletableFuture<Void>> futures = files.stream()
                     .map(file -> CompletableFuture.runAsync(() -> {
                         try {
+                            byte[] fileBytes = file.getBytes(); // Obtenha os bytes originais
                             FileCryptoUtil.EncryptedFileData encryptedData =
-                                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+                                    FileCryptoUtil.encryptFile(fileBytes, publicKey);
                             criarEntidadeContrato(encryptedData, file, documentoProcesso);
+
+                            // Upload para o Vector Store do Advogado
+                            Processo processo = documentoProcesso.getProcesso();
+                            String advogadoNome = processo.getAdvogado().getNome();
+                            String vectorStoreId = openAIAssistantService.getOrCreateVectorStore(advogadoNome);
+                            openAIAssistantService.uploadFileToVectorStore(
+                                    file.getOriginalFilename(),
+                                    fileBytes,
+                                    vectorStoreId
+                            );
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }

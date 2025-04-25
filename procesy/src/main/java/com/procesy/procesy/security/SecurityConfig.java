@@ -179,6 +179,7 @@ public class SecurityConfig {
                 "Authorization",
                 "Content-Type",
                 "X-Requested-With",
+                "X-Private-Key",
                 "Accept",
                 "Origin",
                 "Access-Control-Request-Method",

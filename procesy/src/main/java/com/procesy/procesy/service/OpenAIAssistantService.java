@@ -1,9 +1,12 @@
 package com.procesy.procesy.service;
 
 // package com.procesy.procesy.service;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -295,5 +298,62 @@ public class OpenAIAssistantService {
         HttpEntity<Map<String, Object>> createEntity = new HttpEntity<>(requestBody, getHeaders());
         Map<String, Object> createResponse = restTemplate.postForObject(BASE_URL + "/vector_stores", createEntity, Map.class);
         return (String) createResponse.get("id");
+    }
+
+    public String uploadFileToVectorStore(String fileName, byte[] fileContent, String vectorStoreId) {
+        try {
+            // 1. Upload do arquivo
+            HttpHeaders fileHeaders = new HttpHeaders();
+            fileHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+            fileHeaders.setBearerAuth(API_KEY);
+
+            MultiValueMap<String, Object> fileBody = new LinkedMultiValueMap<>();
+            fileBody.add("file", new ByteArrayResource(fileContent) {
+                @Override
+                public String getFilename() {
+                    return fileName;
+                }
+            });
+            fileBody.add("purpose", "assistants");
+
+            HttpEntity<MultiValueMap<String, Object>> fileEntity = new HttpEntity<>(fileBody, fileHeaders);
+
+            ResponseEntity<Map> fileResponse = restTemplate.exchange(
+                    BASE_URL + "/files",
+                    HttpMethod.POST,
+                    fileEntity,
+                    Map.class
+            );
+
+            if (fileResponse.getStatusCode() != HttpStatus.OK) {
+                throw new RuntimeException("Falha no upload do arquivo: " + fileResponse.getStatusCode());
+            }
+
+            String fileId = (String) fileResponse.getBody().get("id");
+
+            // 2. Associar ao Vector Store
+            HttpHeaders jsonHeaders = new HttpHeaders();
+            jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
+            jsonHeaders.setBearerAuth(API_KEY);
+
+            Map<String, String> associationBody = Collections.singletonMap("file_id", fileId);
+            HttpEntity<Map<String, String>> associationEntity = new HttpEntity<>(associationBody, jsonHeaders);
+
+            ResponseEntity<Map> associationResponse = restTemplate.exchange(
+                    BASE_URL + "/vector_stores/" + vectorStoreId + "/files",
+                    HttpMethod.POST,
+                    associationEntity,
+                    Map.class
+            );
+            System.out.println("ASSOCIATION RESPONSE: " + associationResponse.getBody());
+
+            if (associationResponse.getStatusCode() != HttpStatus.OK) {
+                throw new RuntimeException("Falha na associação ao Vector Store: " + associationResponse.getStatusCode());
+            }
+
+            return fileId;
+        } catch (Exception e) {
+            throw new RuntimeException("Erro completo no upload: " + e.getMessage(), e);
+        }
     }
 }
