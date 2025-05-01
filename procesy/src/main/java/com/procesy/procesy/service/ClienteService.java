@@ -5,6 +5,7 @@ import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.repository.ClienteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,9 @@ public class ClienteService {
 
     @Autowired
     private AdvogadoService advogadoService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     /**
      * Retorna todos os Clientes associados a um Advogado específico.
@@ -46,7 +50,15 @@ public class ClienteService {
         cliente.setAdvogado(advogado);
         return clienteRepository.save(cliente);
     }
+    @Transactional
+    public Cliente register(String email, String senha) {
+        Cliente cliente = clienteRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+        // Criptografa a senha antes de salvar
+        cliente.setSenha(passwordEncoder.encode(senha));
 
+        return clienteRepository.save(cliente);
+    }
     /**
      * Atualiza um Cliente existente, garantindo que o Advogado seja o proprietário.
      *

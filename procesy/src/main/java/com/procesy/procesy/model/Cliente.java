@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -33,6 +34,10 @@ public class Cliente {
 
     @Temporal(TemporalType.DATE)
     private Date dataNascimento;
+
+    @Column(name = "senha", nullable = false)
+    @NotEmpty(message = "A senha é obrigatória.")
+    private String senha;
 
     private String telefone;
     private String email;

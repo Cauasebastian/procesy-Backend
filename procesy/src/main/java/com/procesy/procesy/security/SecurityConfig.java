@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.procesy.procesy.security.Encription.FileCryptoUtil;
 import com.procesy.procesy.service.AdvogadoDetailsService;
+import com.procesy.procesy.service.ClienteDetailsService;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Bucket4j;
@@ -19,6 +20,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -34,6 +38,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -45,15 +50,38 @@ public class SecurityConfig {
     private final AdvogadoDetailsService advogadoDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private static final Logger LOGGER = LoggerFactory.getLogger(FileCryptoUtil.class);
+    private final ClienteDetailsService clienteDetailsService;
 
-    public SecurityConfig(AdvogadoDetailsService advogadoDetailsService, JwtAuthenticationFilter jwtAuthenticationFilter) {
+    // Modifique o construtor para incluir o ClienteDetailsService
+    public SecurityConfig(AdvogadoDetailsService advogadoDetailsService,
+                          ClienteDetailsService clienteDetailsService,
+                          JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.advogadoDetailsService = advogadoDetailsService;
+        this.clienteDetailsService = clienteDetailsService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
+    public DaoAuthenticationProvider clienteAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(clienteDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+    @Bean
+    public DaoAuthenticationProvider advogadoAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(advogadoDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        List<AuthenticationProvider> providers = new ArrayList<>();
+        providers.add(advogadoAuthenticationProvider());
+        providers.add(clienteAuthenticationProvider());
+        return new ProviderManager(providers);
     }
 
     // SecurityConfig.java - Filtro DDoS

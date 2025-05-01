@@ -54,7 +54,7 @@ public class AuthController {
                             loginRequest.getSenha()
                     )
             );
-            String token = jwtUtil.generateToken(loginRequest.getEmail());
+            String token = jwtUtil.generateToken(loginRequest.getEmail(), "ADVOGADO");
             return ResponseEntity.ok(new AuthResponse(token));
         } catch (AuthenticationException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Falha na autenticação: " + e.getMessage());
