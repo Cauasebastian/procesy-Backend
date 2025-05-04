@@ -1,4 +1,4 @@
-package com.procesy.procesy.service;
+package com.procesy.procesy.service.cliente;
 
 import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.repository.ClienteRepository;

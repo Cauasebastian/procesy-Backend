@@ -1,7 +1,7 @@
 package com.procesy.procesy.controller;
 
 import com.procesy.procesy.model.Advogado;
-import com.procesy.procesy.service.AdvogadoService;
+import com.procesy.procesy.service.advogado.AdvogadoService;
 import com.procesy.procesy.service.OpenAIAssistantService;
 import com.procesy.procesy.security.JwtUtil;
 import org.springframework.http.ResponseEntity;

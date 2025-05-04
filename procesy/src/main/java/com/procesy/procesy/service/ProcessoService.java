@@ -9,6 +9,8 @@ import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.model.Processo;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import com.procesy.procesy.repository.ProcessoRepository;
+import com.procesy.procesy.service.advogado.AdvogadoService;
+import com.procesy.procesy.service.cliente.ClienteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

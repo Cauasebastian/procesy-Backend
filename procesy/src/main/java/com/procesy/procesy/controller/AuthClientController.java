@@ -1,7 +1,7 @@
 package com.procesy.procesy.controller;
 
 import com.procesy.procesy.security.JwtUtil;
-import com.procesy.procesy.service.ClienteService;
+import com.procesy.procesy.service.cliente.ClienteService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

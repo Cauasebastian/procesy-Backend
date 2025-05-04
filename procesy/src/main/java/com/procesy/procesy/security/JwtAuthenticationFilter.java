@@ -1,7 +1,7 @@
 package com.procesy.procesy.security;
 
-import com.procesy.procesy.service.AdvogadoDetailsService;
-import com.procesy.procesy.service.ClienteDetailsService;
+import com.procesy.procesy.service.advogado.AdvogadoDetailsService;
+import com.procesy.procesy.service.cliente.ClienteDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;

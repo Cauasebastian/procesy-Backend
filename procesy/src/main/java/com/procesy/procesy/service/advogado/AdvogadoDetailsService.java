@@ -1,4 +1,4 @@
-package com.procesy.procesy.service;
+package com.procesy.procesy.service.advogado;
 
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.repository.AdvogadoRepository;

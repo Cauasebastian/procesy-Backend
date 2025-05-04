@@ -1,16 +1,16 @@
-package com.procesy.procesy.service;
+package com.procesy.procesy.service.cliente;
 
 import com.procesy.procesy.dto.ClienteDTO;
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.repository.ClienteRepository;
+import com.procesy.procesy.service.advogado.AdvogadoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class ClienteService {

@@ -2,7 +2,7 @@ package com.procesy.procesy.controller;
 
 import com.procesy.procesy.security.JwtUtil;
 import com.procesy.procesy.model.Advogado;
-import com.procesy.procesy.service.AdvogadoService;
+import com.procesy.procesy.service.advogado.AdvogadoService;
 import com.procesy.procesy.service.OpenAIAssistantService;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -13,7 +13,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.KeyPair;
