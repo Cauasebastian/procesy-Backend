@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class OpenAIAssistantService {
 
-    private static final String API_KEY = ""; // A chave de api vai aqui
+    private static final String API_KEY = "";
     private static final String BASE_URL = "https://api.openai.com/v1";
     // Remova o ASSISTANT_ID fixo, pois cada advogado terá o seu
 

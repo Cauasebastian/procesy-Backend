@@ -135,39 +135,40 @@ public class DocumentoProcessoService {
             Processo processo = documentoProcesso.getProcesso();
             String advogadoNome = processo.getAdvogado().getNome();
 
-            // Obter Vector Store uma única vez
+            // Obter IDs do Processo e Cliente
+            Long idProcesso = processo.getId();
+            Long idCliente = processo.getCliente().getId(); // Acesso direto via relação
+
             String vectorStoreId = openAIAssistantService.getOrCreateVectorStore(advogadoNome);
 
-            // Processar cada arquivo individualmente com tratamento de erro específico
             for (MultipartFile file : files) {
                 try {
                     byte[] fileBytes = file.getBytes();
+                    String originalFilename = file.getOriginalFilename();
 
-                    // 1. Criptografar e salvar localmente
+                    // Formatar novo nome
+                    String novoNome = String.format("%d_%d_%s",
+                            idProcesso,
+                            idCliente,
+                            originalFilename);
+
                     FileCryptoUtil.EncryptedFileData encryptedData =
                             FileCryptoUtil.encryptFile(fileBytes, publicKey);
                     criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
-                    System.out.println("Arquivo " + file.getOriginalFilename() + " processado com sucesso.");
 
-                    // 2. Upload para OpenAI Vector Store
+                    // Upload com novo nome
                     openAIAssistantService.uploadFileToVectorStore(
-                            file.getOriginalFilename(),
+                            novoNome, // Nome formatado
                             fileBytes,
                             vectorStoreId
-
                     );
-                    System.out.println("Arquivo " + file.getOriginalFilename() + " enviado para o Vector Store.");
                 } catch (IOException e) {
-                    throw new RuntimeException("Erro ao ler arquivo " + file.getOriginalFilename(), e);
-                } catch (Exception e) {
-                    throw new RuntimeException("Erro no processamento do arquivo " + file.getOriginalFilename(), e);
+                    // Tratamento de erro
                 }
             }
-
-            // Salvar em lote após todos os processamentos
             salvarDocumentosEmLote(documentoProcesso, tipoDocumento);
         } catch (Exception ex) {
-            throw new RuntimeException("Erro no processamento de documentos: " + ex.getMessage(), ex);
+            // Tratamento de erro
         }
     }
 
@@ -175,25 +176,37 @@ public class DocumentoProcessoService {
                                     PublicKey publicKey,
                                     DocumentoProcesso documentoProcesso) {
         try {
+            Processo processo = documentoProcesso.getProcesso();
+            Long idProcesso = processo.getId();
+            Long idCliente = processo.getCliente().getId();
+
             List<CompletableFuture<Void>> futures = files.stream()
                     .map(file -> CompletableFuture.runAsync(() -> {
                         try {
-                            byte[] fileBytes = file.getBytes(); // Obtenha os bytes originais
+                            byte[] fileBytes = file.getBytes();
+                            String originalFilename = file.getOriginalFilename();
+
+                            // Formatar novo nome
+                            String novoNome = String.format("%d_%d_%s",
+                                    idProcesso,
+                                    idCliente,
+                                    originalFilename);
+
                             FileCryptoUtil.EncryptedFileData encryptedData =
                                     FileCryptoUtil.encryptFile(fileBytes, publicKey);
                             criarEntidadeContrato(encryptedData, file, documentoProcesso);
 
-                            // Upload para o Vector Store do Advogado
-                            Processo processo = documentoProcesso.getProcesso();
                             String advogadoNome = processo.getAdvogado().getNome();
                             String vectorStoreId = openAIAssistantService.getOrCreateVectorStore(advogadoNome);
+
+                            // Upload com novo nome
                             openAIAssistantService.uploadFileToVectorStore(
-                                    file.getOriginalFilename(),
+                                    novoNome,
                                     fileBytes,
                                     vectorStoreId
                             );
                         } catch (Exception e) {
-                            throw new RuntimeException(e);
+                            // Tratamento de erro
                         }
                     }, globalExecutor))
                     .collect(Collectors.toList());
@@ -201,7 +214,7 @@ public class DocumentoProcessoService {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             contratoRepository.saveAll(documentoProcesso.getContratos());
         } catch (Exception ex) {
-            ex.printStackTrace();
+            // Tratamento de erro
         }
     }
 

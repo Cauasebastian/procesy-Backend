@@ -75,6 +75,9 @@ public class AdvogadoController {
             return ResponseEntity.status(404).body(null);
         }
         Advogado advogado = advogadoOpt.get();
+        // deixa a senha como os 6 primeiros digitos do cpf
+        String senha = cliente.getCpf_cnpj().substring(0, 6);
+        cliente.setSenha(senha);
         cliente.setAdvogado(advogado);
         Cliente savedCliente = clienteRepository.save(cliente);
         return ResponseEntity.ok(savedCliente);
