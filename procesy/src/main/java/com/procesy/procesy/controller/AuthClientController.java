@@ -1,5 +1,7 @@
 package com.procesy.procesy.controller;
 
+import com.procesy.procesy.model.Cliente;
+import com.procesy.procesy.repository.ClienteRepository;
 import com.procesy.procesy.security.JwtUtil;
 import com.procesy.procesy.service.cliente.ClienteService;
 import jakarta.validation.Valid;
@@ -9,6 +11,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -18,9 +21,11 @@ public class AuthClientController {
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final ClienteService clienteService;
+    private final ClienteRepository clienteRepository;
 
-    public AuthClientController(AuthenticationManager authenticationManager, JwtUtil jwtUtil, ClienteService clienteService) {
+    public AuthClientController(AuthenticationManager authenticationManager, JwtUtil jwtUtil, ClienteService clienteService, ClienteRepository clienteRepository) {
         this.authenticationManager = authenticationManager;
+        this.clienteRepository = clienteRepository;
         this.jwtUtil = jwtUtil;
         this.clienteService = clienteService;
     }
@@ -34,7 +39,15 @@ public class AuthClientController {
                             loginRequest.getSenha()
                     )
             );
-            String token = jwtUtil.generateToken(loginRequest.getEmail(), "CLIENTE");
+            Cliente cliente = clienteRepository.findByEmail(loginRequest.getEmail())
+                    .orElseThrow(() -> new UsernameNotFoundException("Cliente não encontrado"));
+
+            String token = jwtUtil.generateToken(
+                    cliente.getEmail(),
+                    "CLIENTE",
+                    cliente.getId()
+            );
+
             return ResponseEntity.ok(new AuthResponse(token));
         } catch (AuthenticationException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Falha na autenticação: " + e.getMessage());

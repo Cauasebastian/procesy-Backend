@@ -24,6 +24,12 @@ public class ClienteService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    //findById
+    public Cliente findById(Long id) {
+        return clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    }
+
     /**
      * Retorna todos os Clientes associados a um Advogado específico.
      *

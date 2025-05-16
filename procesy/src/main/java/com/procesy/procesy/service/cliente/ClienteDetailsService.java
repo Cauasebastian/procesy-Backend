@@ -21,10 +21,17 @@ public class ClienteDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         Cliente cliente = clienteRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Cliente não encontrado"));
+
         return User.builder()
                 .username(cliente.getEmail())
                 .password(cliente.getSenha())
-                .roles("CLIENT")
+                .roles("CLIENTE")
                 .build();
+    }
+
+    public Long getClientIdByEmail(String email) {
+        return clienteRepository.findByEmail(email)
+                .map(Cliente::getId)
+                .orElseThrow(() -> new UsernameNotFoundException("Cliente não encontrado"));
     }
 }

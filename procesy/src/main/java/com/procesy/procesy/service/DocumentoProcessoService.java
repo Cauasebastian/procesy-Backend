@@ -150,7 +150,11 @@ public class DocumentoProcessoService {
                     String novoNome = String.format("%d_%d_%s",
                             idProcesso,
                             idCliente,
-                            originalFilename);
+                            originalFilename.replaceAll("[^a-zA-Z0-9.-]", "_")); // Sanitização
+
+                    if (!novoNome.matches("^\\d+_\\d+_.+\\..+$")) {
+                        throw new IllegalArgumentException("Formato de arquivo inválido para: " + file.getOriginalFilename());
+                    }
 
                     FileCryptoUtil.EncryptedFileData encryptedData =
                             FileCryptoUtil.encryptFile(fileBytes, publicKey);

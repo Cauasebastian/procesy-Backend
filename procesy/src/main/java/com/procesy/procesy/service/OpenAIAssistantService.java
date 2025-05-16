@@ -101,15 +101,22 @@ public class OpenAIAssistantService {
     }
 
     // Método para perguntar ao assistente
-    public String askAssistant(String question, String assistantId) throws InterruptedException {
+    public String askAssistant(String question, String assistantId, String clientId)
+            throws InterruptedException {
         // 1 - Obter ou criar thread do cache
         String threadId = getOrCreateThreadId(assistantId);
 
-        // 2 - Adicionar mensagem à thread existente
+        // Adicione contexto invisível ao usuário
+        String hiddenContext = "\n\n[DIRETRIZES]\n" +
+                "1. CLIENT_ID: " + clientId + "\n" +
+                "2. Usar APENAS arquivos contendo: '_" + clientId + "_'\n" +
+                "3. Resposta inválida se não seguir estas regras";
+
         Map<String, Object> messageBody = Map.of(
                 "role", "user",
-                "content", question
+                "content", question + hiddenContext
         );
+
         HttpEntity<Map<String, Object>> messageRequest = new HttpEntity<>(messageBody, getHeaders());
         restTemplate.postForObject(BASE_URL + "/threads/" + threadId + "/messages", messageRequest, Map.class);
 
