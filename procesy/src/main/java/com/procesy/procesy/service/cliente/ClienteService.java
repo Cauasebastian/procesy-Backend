@@ -1,15 +1,17 @@
-package com.procesy.procesy.service;
+package com.procesy.procesy.service.cliente;
 
 import com.procesy.procesy.dto.ClienteDTO;
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.repository.ClienteRepository;
+import com.procesy.procesy.service.advogado.AdvogadoService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class ClienteService {
@@ -19,6 +21,15 @@ public class ClienteService {
 
     @Autowired
     private AdvogadoService advogadoService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    //findById
+    public Cliente findById(UUID id) {
+        return clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    }
 
     /**
      * Retorna todos os Clientes associados a um Advogado específico.
@@ -46,7 +57,15 @@ public class ClienteService {
         cliente.setAdvogado(advogado);
         return clienteRepository.save(cliente);
     }
+    @Transactional
+    public Cliente register(String email, String senha) {
+        Cliente cliente = clienteRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+        // Criptografa a senha antes de salvar
+        cliente.setSenha(passwordEncoder.encode(senha));
 
+        return clienteRepository.save(cliente);
+    }
     /**
      * Atualiza um Cliente existente, garantindo que o Advogado seja o proprietário.
      *
@@ -56,7 +75,7 @@ public class ClienteService {
      * @return Cliente atualizado
      */
     @Transactional
-    public Cliente atualizarCliente(Long clienteId, Cliente clienteAtualizado, Long advogadoId) {
+    public Cliente atualizarCliente(UUID clienteId, Cliente clienteAtualizado, Long advogadoId) {
         Cliente cliente = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 
@@ -84,7 +103,7 @@ public class ClienteService {
      * @param advogadoId ID do Advogado autenticado
      */
     @Transactional
-    public void deletarCliente(Long clienteId, Long advogadoId) {
+    public void deletarCliente(UUID clienteId, Long advogadoId) {
         Cliente cliente = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 
@@ -102,7 +121,7 @@ public class ClienteService {
      * @param advogadoId ID do Advogado autenticado
      * @return Cliente encontrado
      */
-    public Cliente getClienteById(Long clienteId, Long advogadoId) {
+    public Cliente getClienteById(UUID clienteId, Long advogadoId) {
         Cliente cliente = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 

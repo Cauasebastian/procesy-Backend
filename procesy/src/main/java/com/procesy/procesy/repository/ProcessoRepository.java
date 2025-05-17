@@ -17,4 +17,8 @@ public interface ProcessoRepository extends JpaRepository<Processo, Long> {
      * @return Lista de Processos
      */
     List<Processo> findByClienteAdvogadoId(Long advogadoId);
+
+    //findByClienteEmail
+    List<Processo> findByClienteEmail(String email);
+
 }

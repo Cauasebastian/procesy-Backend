@@ -1,11 +1,15 @@
 package com.procesy.procesy.controller;
 
 import com.procesy.procesy.model.Advogado;
-import com.procesy.procesy.service.AdvogadoService;
+import com.procesy.procesy.model.Cliente;
+import com.procesy.procesy.service.advogado.AdvogadoService;
 import com.procesy.procesy.service.OpenAIAssistantService;
 import com.procesy.procesy.security.JwtUtil;
+import com.procesy.procesy.service.cliente.ClienteService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/assistant")
@@ -14,11 +18,14 @@ public class AssistantController {
     private final OpenAIAssistantService assistantService;
     private final JwtUtil jwtUtil;
     private final AdvogadoService advogadoService;
+    private final ClienteService clienteService;
 
     public AssistantController(OpenAIAssistantService assistantService,
                                JwtUtil jwtUtil,
-                               AdvogadoService advogadoService) {
+                               AdvogadoService advogadoService,
+                               ClienteService clienteService) {
         this.assistantService = assistantService;
+        this.clienteService = clienteService;
         this.jwtUtil = jwtUtil;
         this.advogadoService = advogadoService;
     }
@@ -39,25 +46,51 @@ public class AssistantController {
                 return ResponseEntity.status(401).body("Token inválido ou expirado");
             }
 
-            // Obter email do token
-            String email = jwtUtil.getUsernameFromJWT(token);
+            // Obter informações do token
+            String role = jwtUtil.getRoleFromJWT(token);
+            String resposta;
 
-            // Buscar advogado pelo email
-            Advogado advogado = advogadoService.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+            if ("ADVOGADO".equalsIgnoreCase(role)) {
+                // Processamento para advogados
+                String email = jwtUtil.getUsernameFromJWT(token);
+                Advogado advogado = advogadoService.findByEmail(email)
+                        .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
 
-            // Verificar assistantId
-            String assistantId = advogado.getAssistantId();
-            if (assistantId == null || assistantId.isEmpty()) {
-                return ResponseEntity.status(400).body("ID do assistente não configurado");
+                resposta = processarAdvogado(pergunta, advogado);
+            } else if ("CLIENTE".equalsIgnoreCase(role)) {
+                // Processamento para clientes
+                String clientId = jwtUtil.getClientIdFromJWT(token).toString();
+                resposta = processarCliente(pergunta, clientId);
+            } else {
+                return ResponseEntity.status(403).body("Acesso negado");
             }
 
-            // Chamar o serviço
-            String resposta = assistantService.askAssistant(pergunta, assistantId);
             return ResponseEntity.ok(resposta);
-
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Erro: " + e.getMessage());
         }
+    }
+
+    private String processarAdvogado(String pergunta, Advogado advogado) throws Exception {
+        if (advogado.getAssistantId() == null || advogado.getAssistantId().isEmpty()) {
+            throw new RuntimeException("ID do assistente não configurado");
+        }
+        return assistantService.askAssistant(pergunta, advogado.getAssistantId(),null);
+    }
+
+    private String processarCliente(String pergunta, String clientId) throws Exception {
+        Cliente cliente = clienteService.findById(UUID.fromString(clientId));
+
+        Advogado advogado = cliente.getAdvogado();
+        if (advogado == null) {
+            throw new RuntimeException("Cliente não possui advogado associado");
+        }
+
+        String vectorStoreId = assistantService.getOrCreateVectorStore(advogado.getNome());
+        return assistantService.askAssistant(
+                pergunta,
+                advogado.getAssistantId(),
+                clientId
+        );
     }
 }

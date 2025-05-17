@@ -25,19 +25,17 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
+
+import static org.hibernate.id.SequenceMismatchStrategy.LOG;
+import static org.hibernate.sql.ast.SqlTreeCreationLogger.LOGGER;
 
 @Service
 public class DocumentoProcessoService {
@@ -54,6 +52,9 @@ public class DocumentoProcessoService {
     private DocumentoComplementarRepository documentoComplementarRepository;
     @Autowired
     private ContratoRepository contratoRepository;
+
+    @Autowired
+    private OpenAIAssistantService openAIAssistantService;
 
     // Executor global para processamento paralelo. Ajuste o tamanho do pool conforme os recursos disponíveis.
     private final ExecutorService globalExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
@@ -98,12 +99,18 @@ public class DocumentoProcessoService {
             ));
         }
 
-        // Aguarda a conclusão de todas as tarefas (pode-se adicionar timeout, se necessário)
-        for (Future<?> future : futures) {
-            future.get();
+        try {
+            for (Future<?> future : futures) {
+                future.get(); // Isso agora propagará exceções
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            LOGGER.error("Erro durante processamento paralelo: {}", e.getMessage(), e);
+            throw new RuntimeException("Falha no processamento paralelo de documentos", e);
         }
 
+        // Salvar tudo uma única vez após processamento completo
         documentoProcessoRepository.save(documentoProcesso);
+        processoRepository.save(processo);
     }
 
     private DocumentoProcesso initializeDocumentoProcesso(Processo processo) {
@@ -123,52 +130,111 @@ public class DocumentoProcessoService {
         documentoProcesso.getContratos().clear();
     }
 
-    // Processamento paralelo dentro de cada tipo de documento
     private void processarDocumentos(List<MultipartFile> files,
                                      PublicKey publicKey,
                                      DocumentoProcesso documentoProcesso,
                                      String tipoDocumento) {
         try {
-            List<CompletableFuture<Void>> futures = files.stream()
-                    .map(file -> CompletableFuture.runAsync(() -> {
-                        try {
-                            FileCryptoUtil.EncryptedFileData encryptedData =
-                                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
-                            criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    }, globalExecutor))
-                    .collect(Collectors.toList());
+            Processo processo = documentoProcesso.getProcesso();
+            String advogadoNome = processo.getAdvogado().getNome();
 
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            // Obter IDs do Processo e Cliente
+            Long idProcesso = processo.getId();
+
+            LOGGER.info("ID do Processo: " + idProcesso);
+            UUID idCliente = processo.getCliente().getId(); // Acesso direto via relação
+            LOGGER.info("ID do Cliente: " + idCliente);
+
+            String vectorStoreId = openAIAssistantService.getOrCreateVectorStore(advogadoNome);
+
+            for (MultipartFile file : files) {
+                try {
+                    byte[] fileBytes = file.getBytes();
+                    String originalFilename = file.getOriginalFilename();
+
+                    // Formatar novo nome
+                    String novoNome = String.format("%d_%s_%s",
+                            idProcesso,
+                            idCliente.toString(), // UUID deve ser convertido para String
+                            originalFilename);
+
+                    LOGGER.info("Novo nome do arquivo: " + novoNome);
+                    FileCryptoUtil.EncryptedFileData encryptedData =
+                            FileCryptoUtil.encryptFile(fileBytes, publicKey);
+                    criarEntidadeDocumento(encryptedData, file, tipoDocumento, documentoProcesso);
+
+                    LOGGER.info("Entidade " + tipoDocumento + " criada com sucesso.");
+
+                    // Upload com novo nome
+                    openAIAssistantService.uploadFileToVectorStore(
+                            novoNome, // Nome formatado
+                            fileBytes,
+                            vectorStoreId
+                    );
+                    LOGGER.info("Arquivo enviado para o Vector Store com sucesso.");
+                } catch (Exception ex) {
+                    LOGGER.error("Erro crítico ao processar documentos do tipo " + tipoDocumento + ": " + ex.getMessage(), ex);
+                    throw new RuntimeException("Falha no processamento de documentos", ex);
+                }
+            }
             salvarDocumentosEmLote(documentoProcesso, tipoDocumento);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            // Tratamento de erro
+            LOGGER.error("Erro ao processar documentos: " + ex.getMessage(), ex);
+            throw new RuntimeException("Falha no processamento de documentos", ex);
         }
     }
 
-    // Processamento paralelo para contratos
     private void processarContratos(List<MultipartFile> files,
                                     PublicKey publicKey,
                                     DocumentoProcesso documentoProcesso) {
         try {
+            Processo processo = documentoProcesso.getProcesso();
+            Long idProcesso = processo.getId();
+            UUID idCliente = processo.getCliente().getId();
+
+            LOGGER.info("Iniciando processamento de contratos para processo {}" + idProcesso);
+
             List<CompletableFuture<Void>> futures = files.stream()
                     .map(file -> CompletableFuture.runAsync(() -> {
                         try {
+                            byte[] fileBytes = file.getBytes();
+                            String originalFilename = file.getOriginalFilename();
+
+                            // Formatar nome CORRETO
+                            String novoNome = String.format("%d_%s_%s",
+                                    idProcesso,
+                                    idCliente.toString(), // UUID convertido
+                                    originalFilename);
+
+                            LOGGER.debug("Processando contrato: " + novoNome);
+
                             FileCryptoUtil.EncryptedFileData encryptedData =
-                                    FileCryptoUtil.encryptFile(file.getBytes(), publicKey);
+                                    FileCryptoUtil.encryptFile(fileBytes, publicKey);
                             criarEntidadeContrato(encryptedData, file, documentoProcesso);
+
+                            String vectorStoreId = openAIAssistantService.getOrCreateVectorStore(
+                                    processo.getAdvogado().getNome()
+                            );
+
+                            openAIAssistantService.uploadFileToVectorStore(
+                                    novoNome,
+                                    fileBytes,
+                                    vectorStoreId
+                            );
                         } catch (Exception e) {
-                            throw new RuntimeException(e);
+                            LOGGER.error("Erro no contrato {}: {}" + file.getOriginalFilename(), e.getMessage(), e);
+                            throw new CompletionException(e);
                         }
                     }, globalExecutor))
                     .collect(Collectors.toList());
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            contratoRepository.saveAll(documentoProcesso.getContratos());
+            salvarDocumentosEmLote(documentoProcesso, "Contrato");
+
         } catch (Exception ex) {
-            ex.printStackTrace();
+            LOGGER.error("Falha crítica em contratos: {}", ex.getMessage(), ex);
+            throw new RuntimeException(ex);
         }
     }
 
@@ -189,6 +255,9 @@ public class DocumentoProcessoService {
             case "DocumentoComplementar":
                 createAndAddDocumentoComplementar(documentoProcesso, encryptedData, file);
                 break;
+            case "Contrato":
+                criarEntidadeContrato(encryptedData, file, documentoProcesso);
+                break;
             default:
                 throw new IllegalArgumentException("Tipo de documento inválido: " + tipoDocumento);
         }
@@ -198,6 +267,9 @@ public class DocumentoProcessoService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void salvarDocumentosEmLote(DocumentoProcesso documentoProcesso, String tipoDocumento) {
         switch (tipoDocumento) {
+            case "Contrato":
+                contratoRepository.saveAll(documentoProcesso.getContratos());
+                break;
             case "Procuracao":
                 procuracaoRepository.saveAll(documentoProcesso.getProcuracoes());
                 break;

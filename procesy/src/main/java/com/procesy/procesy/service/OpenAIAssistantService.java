@@ -1,9 +1,12 @@
 package com.procesy.procesy.service;
 
 // package com.procesy.procesy.service;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class OpenAIAssistantService {
 
-    private static final String API_KEY = ""; // A chave de api vai aqui
+    private static final String API_KEY = "";
     private static final String BASE_URL = "https://api.openai.com/v1";
     // Remova o ASSISTANT_ID fixo, pois cada advogado terá o seu
 
@@ -47,35 +50,36 @@ public class OpenAIAssistantService {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("name", "Assistente de " + advogadoNome);
         requestBody.put("model", "gpt-4o-mini");
-        requestBody.put("instructions", "Você é um assistente jurídico inteligente integrado ao Procesy, um software especializado em gerenciamento de processos jurídicos para advogados. Sua missão é facilitar a rotina dos usuários respondendo dúvidas, organizando tarefas, monitorando prazos, auxiliando na gestão de documentos e sugerindo boas práticas jurídicas.\n" +
-                "\n" +
-                "Contexto:\n" +
-                "\n" +
-                "O usuário é um advogado, estagiário de direito ou membro de um escritório jurídico.\n" +
-                "\n" +
-                "Você deve sempre usar uma linguagem formal, clara e objetiva, adaptando-se ao nível técnico do usuário.\n" +
-                "\n" +
-                "Sempre priorize a precisão, prazos legais e ética profissional.\n" +
-                "\n" +
-                "O sistema possui informações sobre processos, clientes, documentos, prazos e compromissos da agenda jurídica.\n" +
-                "\n" +
-                "Suas habilidades incluem:\n" +
-                "\n" +
-                "Informar sobre o andamento de processos judiciais cadastrados.\n" +
-                "\n" +
-                "Gerar minutas de petições, contratos ou relatórios conforme o tipo de processo.\n" +
-                "\n" +
-                "Lembrar o usuário de prazos, audiências e tarefas pendentes.\n" +
-                "\n" +
-                "Sugerir modelos de documentos ou boas práticas para gestão jurídica.\n" +
-                "\n" +
-                "Explicar termos jurídicos ou procedimentos legais de forma acessível.\n" +
-                "\n" +
-                "Restrições:\n" +
-                "\n" +
-                "Nunca ofereça aconselhamento jurídico pessoal — apenas informações e sugestões gerais com base nos dados fornecidos.\n" +
-                "\n" +
-                "Quando não tiver certeza de algo, sugira ao usuário consultar um especialista ou verificar fontes oficiais.");
+        requestBody.put("instructions",
+                "Você é um assistente jurídico inteligente integrado ao Procesy, um software especializado em gerenciamento de processos jurídicos para advogados. " +
+                        "Sua missão é facilitar a rotina dos usuários respondendo dúvidas, organizando tarefas, monitorando prazos, auxiliando na gestão de documentos e sugerindo boas práticas jurídicas.\n\n" +
+
+                        "Contexto:\n" +
+                        "O usuário é um advogado, estagiário de direito ou membro de um escritório jurídico.\n" +
+                        "Você deve sempre usar uma linguagem formal, clara e objetiva, adaptando-se ao nível técnico do usuário.\n" +
+                        "Sempre priorize a precisão, prazos legais e ética profissional.\n" +
+                        "O sistema possui informações sobre processos, clientes, documentos, prazos e compromissos da agenda jurídica.\n\n" +
+
+                        "Suas habilidades incluem:\n" +
+                        "- Informar sobre o andamento de processos judiciais cadastrados.\n" +
+                        "- Gerar minutas de petições, contratos ou relatórios conforme o tipo de processo.\n" +
+                        "- Lembrar o usuário de prazos, audiências e tarefas pendentes.\n" +
+                        "- Sugerir modelos de documentos ou boas práticas para gestão jurídica.\n" +
+                        "- Explicar termos jurídicos ou procedimentos legais de forma acessível.\n\n" +
+
+                        "Restrições:\n" +
+                        "- Nunca ofereça aconselhamento jurídico pessoal — apenas informações e sugestões gerais com base nos dados fornecidos.\n" +
+                        "- Quando não tiver certeza de algo, sugira ao usuário consultar um especialista ou verificar fontes oficiais.\n\n" +
+
+                        "DIRETRIZES ABSOLUTAS:\n" +
+                        "3. Formato dos arquivos esperado: [ID Processo]_[CLIENT_ID]_[Nome Arquivo]\n" +
+                        "   3.1. Exemplo: '1_12345_1234567890_nome_do_arquivo.pdf'\n" +
+                        "   3.2. Se o CLIENT_ID e o nome do arquivo forem diferentes, não use\n" +
+                        "   3.3. Se o arquivo não tiver o ID do cliente, não use\n" +
+                        "4. Se não houver correspondência e não houver nenhum arquivo com esse ID, informe: 'Nenhum documento encontrado para este cliente.'\n" +
+                        "5. Jamais use arquivos que não sejam do cliente associado a este advogado.\n"
+        );
+
 
         // Configuração das ferramentas
         List<Map<String, String>> tools = new ArrayList<>();
@@ -98,15 +102,28 @@ public class OpenAIAssistantService {
     }
 
     // Método para perguntar ao assistente
-    public String askAssistant(String question, String assistantId) throws InterruptedException {
+    public String askAssistant(String question, String assistantId, String clientId)
+            throws InterruptedException {
         // 1 - Obter ou criar thread do cache
         String threadId = getOrCreateThreadId(assistantId);
 
-        // 2 - Adicionar mensagem à thread existente
+        // Adicione contexto invisível ao usuário
+        String hiddenContext = "DIRETRIZES ABSOLUTAS:\n" +
+                "1. CLIENT_ID: " + clientId + "\n" +
+                "2. Use EXCLUSIVAMENTE arquivos que contenham esse ID: '" + clientId + "' no nome\n" +
+                "3. Formato esperado: [ID Processo]_[CLIENT_ID]_[Nome Arquivo]\n" +
+                "3.1. Exemplo: '1_12345_1234567890_nome_do_arquivo.pdf'\n" +
+                // se o client_ID e o nome do arquivo forem diferentes, não use
+                "3.2 se o client_ID e o nome do arquivo forem diferentes, não use\n" +
+                "3.3. Se o arquivo não tiver o ID do cliente, não use\n" +
+                "4. Se não houver correspondência, e nao tiver nenhum arquivo com esse informe: 'Nenhum documento encontrado para este cliente'" +
+                "\n5. Jamais use arquivos que não sejam do cliente associado a este advogado\n";
+
         Map<String, Object> messageBody = Map.of(
                 "role", "user",
-                "content", question
+                "content",hiddenContext + "\n" + question
         );
+
         HttpEntity<Map<String, Object>> messageRequest = new HttpEntity<>(messageBody, getHeaders());
         restTemplate.postForObject(BASE_URL + "/threads/" + threadId + "/messages", messageRequest, Map.class);
 
@@ -295,5 +312,62 @@ public class OpenAIAssistantService {
         HttpEntity<Map<String, Object>> createEntity = new HttpEntity<>(requestBody, getHeaders());
         Map<String, Object> createResponse = restTemplate.postForObject(BASE_URL + "/vector_stores", createEntity, Map.class);
         return (String) createResponse.get("id");
+    }
+
+    public String uploadFileToVectorStore(String fileName, byte[] fileContent, String vectorStoreId) {
+        try {
+            // 1. Upload do arquivo
+            HttpHeaders fileHeaders = new HttpHeaders();
+            fileHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+            fileHeaders.setBearerAuth(API_KEY);
+
+            MultiValueMap<String, Object> fileBody = new LinkedMultiValueMap<>();
+            fileBody.add("file", new ByteArrayResource(fileContent) {
+                @Override
+                public String getFilename() {
+                    return fileName;
+                }
+            });
+            fileBody.add("purpose", "assistants");
+
+            HttpEntity<MultiValueMap<String, Object>> fileEntity = new HttpEntity<>(fileBody, fileHeaders);
+
+            ResponseEntity<Map> fileResponse = restTemplate.exchange(
+                    BASE_URL + "/files",
+                    HttpMethod.POST,
+                    fileEntity,
+                    Map.class
+            );
+
+            if (fileResponse.getStatusCode() != HttpStatus.OK) {
+                throw new RuntimeException("Falha no upload do arquivo: " + fileResponse.getStatusCode());
+            }
+
+            String fileId = (String) fileResponse.getBody().get("id");
+
+            // 2. Associar ao Vector Store
+            HttpHeaders jsonHeaders = new HttpHeaders();
+            jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
+            jsonHeaders.setBearerAuth(API_KEY);
+
+            Map<String, String> associationBody = Collections.singletonMap("file_id", fileId);
+            HttpEntity<Map<String, String>> associationEntity = new HttpEntity<>(associationBody, jsonHeaders);
+
+            ResponseEntity<Map> associationResponse = restTemplate.exchange(
+                    BASE_URL + "/vector_stores/" + vectorStoreId + "/files",
+                    HttpMethod.POST,
+                    associationEntity,
+                    Map.class
+            );
+            System.out.println("ASSOCIATION RESPONSE: " + associationResponse.getBody());
+
+            if (associationResponse.getStatusCode() != HttpStatus.OK) {
+                throw new RuntimeException("Falha na associação ao Vector Store: " + associationResponse.getStatusCode());
+            }
+
+            return fileId;
+        } catch (Exception e) {
+            throw new RuntimeException("Erro completo no upload: " + e.getMessage(), e);
+        }
     }
 }

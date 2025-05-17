@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtUtil {
@@ -23,38 +24,55 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(String email) {
+    public String generateToken(String email, String role, UUID clientId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(email)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
+                .claim("role", role);
+
+        if (clientId != null) {
+            builder.claim("clientId", clientId.toString()); // Armazenar como String
+        }
+
+        return builder
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
 
     public String getUsernameFromJWT(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-
+        Claims claims = getClaimsFromToken(token);
         return claims.getSubject();
+    }
+
+    public String getRoleFromJWT(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims.get("role", String.class);
+    }
+
+    public UUID getClientIdFromJWT(String token) {
+        Claims claims = getClaimsFromToken(token);
+        String clientIdStr = claims.get("clientId", String.class); // Ler como String
+        return UUID.fromString(clientIdStr); // Converter para UUID
     }
 
     public boolean validateToken(String authToken) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
-                    .build()
-                    .parseClaimsJws(authToken);
+            getClaimsFromToken(authToken);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
-            // Log the exception if needed
             return false;
         }
+    }
+
+    private Claims getClaimsFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 }

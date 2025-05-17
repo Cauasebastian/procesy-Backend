@@ -2,7 +2,7 @@ package com.procesy.procesy.controller;
 
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.security.JwtUtil;
-import com.procesy.procesy.service.AdvogadoService;
+import com.procesy.procesy.service.advogado.AdvogadoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,7 +10,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

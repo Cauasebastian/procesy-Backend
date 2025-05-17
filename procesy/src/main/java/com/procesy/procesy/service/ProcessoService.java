@@ -9,6 +9,8 @@ import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.model.Processo;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import com.procesy.procesy.repository.ProcessoRepository;
+import com.procesy.procesy.service.advogado.AdvogadoService;
+import com.procesy.procesy.service.cliente.ClienteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,7 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -99,7 +102,7 @@ public class ProcessoService {
      * @return ProcessoDTO salvo
      */
     @Transactional
-    public ProcessoDTO criarProcesso(ProcessoDTO processoDTO, Long advogadoId, Long clienteId) {
+    public ProcessoDTO criarProcesso(ProcessoDTO processoDTO, Long advogadoId, UUID clienteId) {
         // Verifica o cliente e se pertence ao advogado
         Cliente cliente = clienteService.getClienteById(clienteId, advogadoId);
 

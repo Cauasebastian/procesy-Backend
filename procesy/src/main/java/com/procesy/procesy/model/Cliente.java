@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,6 +12,7 @@ import lombok.Setter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -21,9 +23,9 @@ import java.util.List;
 public class Cliente {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @EqualsAndHashCode.Include
-    private Long id;
+    private UUID id;
 
     private String nome;
     private String genero;
@@ -33,6 +35,10 @@ public class Cliente {
 
     @Temporal(TemporalType.DATE)
     private Date dataNascimento;
+
+    @Column(name = "senha", nullable = false)
+    @NotEmpty(message = "A senha é obrigatória.")
+    private String senha;
 
     private String telefone;
     private String email;
@@ -44,7 +50,7 @@ public class Cliente {
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Processo> processos = new ArrayList<>();
 
-    public Cliente(long l, String s) {
+    public Cliente(UUID l, String s) {
         this.id = l;
         this.nome = s;
     }

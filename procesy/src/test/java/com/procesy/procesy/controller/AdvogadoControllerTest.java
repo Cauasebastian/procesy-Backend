@@ -17,6 +17,7 @@ import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -73,7 +74,7 @@ class AdvogadoControllerTest {
      */
     @Test
     void getMeusClientes_advogadoNotFound_throwsException() {
-        Long clienteId = 1L;
+        UUID clienteId = UUID.randomUUID();
         Cliente cliente = new Cliente();
         cliente.setId(clienteId);
         cliente.setAdvogado(null);
@@ -115,7 +116,8 @@ class AdvogadoControllerTest {
         advogado.setId(1L);
         advogado.setEmail(email);
         Cliente cliente = new Cliente();
-        cliente.setId(1L);
+        //UUID
+        cliente.setId(UUID.randomUUID());
         cliente.setNome("Cliente Teste");
         cliente.setAdvogado(advogado);
         Cliente clienteAtualizado = new Cliente();

@@ -1,4 +1,4 @@
-package com.procesy.procesy.service;
+package com.procesy.procesy.service.advogado;
 
 import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.repository.AdvogadoRepository;
@@ -27,7 +27,7 @@ public class AdvogadoDetailsService implements UserDetailsService {
         return org.springframework.security.core.userdetails.User
                 .withUsername(advogado.getEmail())
                 .password(advogado.getSenha())
-                .roles("USER")
+                .roles("ADVOGADO")
                 .build();
     }
 

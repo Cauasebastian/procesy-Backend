@@ -2,7 +2,7 @@ package com.procesy.procesy.controller;
 
 import com.procesy.procesy.security.JwtUtil;
 import com.procesy.procesy.model.Advogado;
-import com.procesy.procesy.service.AdvogadoService;
+import com.procesy.procesy.service.advogado.AdvogadoService;
 import com.procesy.procesy.service.OpenAIAssistantService;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -12,8 +12,8 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.KeyPair;
@@ -54,7 +54,11 @@ public class AuthController {
                             loginRequest.getSenha()
                     )
             );
-            String token = jwtUtil.generateToken(loginRequest.getEmail());
+            Advogado advogado = advogadoService.findByEmail(loginRequest.getEmail())
+                    .orElseThrow(() -> new UsernameNotFoundException("Advogado não encontrado"));
+
+            String token = jwtUtil.generateToken(loginRequest.getEmail(), "ADVOGADO", null);
+
             return ResponseEntity.ok(new AuthResponse(token));
         } catch (AuthenticationException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Falha na autenticação: " + e.getMessage());
