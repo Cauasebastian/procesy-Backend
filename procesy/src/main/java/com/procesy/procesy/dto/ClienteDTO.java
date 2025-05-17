@@ -1,7 +1,9 @@
 package com.procesy.procesy.dto;
 
+import java.util.UUID;
+
 public class ClienteDTO {
-    private Long id;
+    private UUID id;
     private String nome;
     private String email;
     private String telefone;
@@ -10,7 +12,7 @@ public class ClienteDTO {
     // Construtores
     public ClienteDTO() {}
 
-    public ClienteDTO(Long id, String nome, String email, String telefone, int quantidadeProcessos) {
+    public ClienteDTO(UUID id, String nome, String email, String telefone, int quantidadeProcessos) {
         this.id = id;
         this.nome = nome;
         this.email = email;
@@ -19,11 +21,11 @@ public class ClienteDTO {
     }
 
     // Getters e Setters
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

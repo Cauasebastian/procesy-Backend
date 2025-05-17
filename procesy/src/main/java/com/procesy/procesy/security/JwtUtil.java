@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtUtil {
@@ -23,7 +24,7 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(String email, String role, Long clientId) {
+    public String generateToken(String email, String role, UUID clientId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
@@ -34,7 +35,7 @@ public class JwtUtil {
                 .claim("role", role);
 
         if (clientId != null) {
-            builder.claim("clientId", clientId);
+            builder.claim("clientId", clientId.toString()); // Armazenar como String
         }
 
         return builder
@@ -52,9 +53,10 @@ public class JwtUtil {
         return claims.get("role", String.class);
     }
 
-    public Long getClientIdFromJWT(String token) {
+    public UUID getClientIdFromJWT(String token) {
         Claims claims = getClaimsFromToken(token);
-        return claims.get("clientId", Long.class);
+        String clientIdStr = claims.get("clientId", String.class); // Ler como String
+        return UUID.fromString(clientIdStr); // Converter para UUID
     }
 
     public boolean validateToken(String authToken) {

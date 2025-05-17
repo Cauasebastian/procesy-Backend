@@ -8,6 +8,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class ClienteDetailsService implements UserDetailsService {
 
@@ -29,7 +31,7 @@ public class ClienteDetailsService implements UserDetailsService {
                 .build();
     }
 
-    public Long getClientIdByEmail(String email) {
+    public UUID getClientIdByEmail(String email) {
         return clienteRepository.findByEmail(email)
                 .map(Cliente::getId)
                 .orElseThrow(() -> new UsernameNotFoundException("Cliente não encontrado"));

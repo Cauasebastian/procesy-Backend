@@ -9,6 +9,8 @@ import com.procesy.procesy.service.cliente.ClienteService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/assistant")
 public class AssistantController {
@@ -57,7 +59,7 @@ public class AssistantController {
                 resposta = processarAdvogado(pergunta, advogado);
             } else if ("CLIENTE".equalsIgnoreCase(role)) {
                 // Processamento para clientes
-                Long clientId = jwtUtil.getClientIdFromJWT(token);
+                String clientId = jwtUtil.getClientIdFromJWT(token).toString();
                 resposta = processarCliente(pergunta, clientId);
             } else {
                 return ResponseEntity.status(403).body("Acesso negado");
@@ -76,8 +78,8 @@ public class AssistantController {
         return assistantService.askAssistant(pergunta, advogado.getAssistantId(),null);
     }
 
-    private String processarCliente(String pergunta, Long clientId) throws Exception {
-        Cliente cliente = clienteService.findById(clientId);
+    private String processarCliente(String pergunta, String clientId) throws Exception {
+        Cliente cliente = clienteService.findById(UUID.fromString(clientId));
 
         Advogado advogado = cliente.getAdvogado();
         if (advogado == null) {
@@ -88,7 +90,7 @@ public class AssistantController {
         return assistantService.askAssistant(
                 pergunta,
                 advogado.getAssistantId(),
-                clientId.toString()
+                clientId
         );
     }
 }

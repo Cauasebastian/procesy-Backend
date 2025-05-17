@@ -57,7 +57,7 @@ public class AuthController {
             Advogado advogado = advogadoService.findByEmail(loginRequest.getEmail())
                     .orElseThrow(() -> new UsernameNotFoundException("Advogado não encontrado"));
 
-            String token = jwtUtil.generateToken(loginRequest.getEmail(), "ADVOGADO", advogado.getId());
+            String token = jwtUtil.generateToken(loginRequest.getEmail(), "ADVOGADO", null);
 
             return ResponseEntity.ok(new AuthResponse(token));
         } catch (AuthenticationException e) {

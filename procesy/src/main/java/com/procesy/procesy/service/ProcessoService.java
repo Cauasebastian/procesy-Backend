@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -101,7 +102,7 @@ public class ProcessoService {
      * @return ProcessoDTO salvo
      */
     @Transactional
-    public ProcessoDTO criarProcesso(ProcessoDTO processoDTO, Long advogadoId, Long clienteId) {
+    public ProcessoDTO criarProcesso(ProcessoDTO processoDTO, Long advogadoId, UUID clienteId) {
         // Verifica o cliente e se pertence ao advogado
         Cliente cliente = clienteService.getClienteById(clienteId, advogadoId);
 

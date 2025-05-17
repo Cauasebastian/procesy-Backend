@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ClienteService {
@@ -25,7 +26,7 @@ public class ClienteService {
     private PasswordEncoder passwordEncoder;
 
     //findById
-    public Cliente findById(Long id) {
+    public Cliente findById(UUID id) {
         return clienteRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
     }
@@ -74,7 +75,7 @@ public class ClienteService {
      * @return Cliente atualizado
      */
     @Transactional
-    public Cliente atualizarCliente(Long clienteId, Cliente clienteAtualizado, Long advogadoId) {
+    public Cliente atualizarCliente(UUID clienteId, Cliente clienteAtualizado, Long advogadoId) {
         Cliente cliente = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 
@@ -102,7 +103,7 @@ public class ClienteService {
      * @param advogadoId ID do Advogado autenticado
      */
     @Transactional
-    public void deletarCliente(Long clienteId, Long advogadoId) {
+    public void deletarCliente(UUID clienteId, Long advogadoId) {
         Cliente cliente = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 
@@ -120,7 +121,7 @@ public class ClienteService {
      * @param advogadoId ID do Advogado autenticado
      * @return Cliente encontrado
      */
-    public Cliente getClienteById(Long clienteId, Long advogadoId) {
+    public Cliente getClienteById(UUID clienteId, Long advogadoId) {
         Cliente cliente = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 

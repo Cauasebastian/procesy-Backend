@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -59,6 +60,24 @@ public class AdvogadoController {
 
         return ResponseEntity.ok(clienteDTOs);
     }
+    @GetMapping("/clientes/{id}")
+    public ResponseEntity<Cliente> getClienteById(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        String email = authentication.getName();
+        Optional<Advogado> advogadoOpt = advogadoRepository.findByEmail(email);
+        if (advogadoOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(null);
+        }
+        Advogado advogado = advogadoOpt.get();
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+
+        if (!cliente.getAdvogado().getId().equals(advogado.getId())) {
+            return ResponseEntity.status(403).build(); // Forbidden
+        }
+        return ResponseEntity.ok(cliente);
+    }
 
     /**
      * Endpoint para criar um novo Cliente.
@@ -93,7 +112,7 @@ public class AdvogadoController {
      */
     @PutMapping("/clientes/{id}")
     public ResponseEntity<Cliente> atualizarCliente(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @Valid @RequestBody Cliente clienteAtualizado,
             Authentication authentication) {
         String email = authentication.getName();
@@ -130,7 +149,7 @@ public class AdvogadoController {
      */
     @DeleteMapping("/clientes/{id}")
     public ResponseEntity<Void> deletarCliente(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             Authentication authentication) {
         String email = authentication.getName();
         Advogado advogado = advogadoRepository.findByEmail(email)
@@ -173,7 +192,7 @@ public class AdvogadoController {
      * @return ProcessoDTO criado.
      */
     @PostMapping("/processos")
-    public ResponseEntity<ProcessoDTO> criarProcesso(@RequestBody ProcessoDTO processoDTO, @RequestParam Long clienteId, Authentication authentication) {
+    public ResponseEntity<ProcessoDTO> criarProcesso(@RequestBody ProcessoDTO processoDTO, @RequestParam UUID clienteId, Authentication authentication) {
         String email = authentication.getName();
         Advogado advogado = advogadoRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
