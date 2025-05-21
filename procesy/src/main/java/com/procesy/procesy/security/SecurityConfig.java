@@ -84,6 +84,7 @@ public class SecurityConfig {
         return new ProviderManager(providers);
     }
 
+    /*
     // SecurityConfig.java - Filtro DDoS
     @Bean
     public OncePerRequestFilter ddosRateLimitFilter() {
@@ -114,6 +115,7 @@ public class SecurityConfig {
     }
 
     // Filtro de Login com Rate Limit Global
+
     @Bean
     public OncePerRequestFilter loginRateLimitFilter() {
         return new OncePerRequestFilter() {
@@ -166,6 +168,7 @@ public class SecurityConfig {
             }
         };
     }
+    */
 
     // Restante do código mantido igual...
     @Bean
@@ -182,9 +185,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+                /*
                 .addFilterBefore(ddosRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(registrationRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(loginRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
+                 */
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

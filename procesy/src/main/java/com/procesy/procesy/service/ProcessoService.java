@@ -1,5 +1,6 @@
 package com.procesy.procesy.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.procesy.procesy.dto.ClienteDTO;
 import com.procesy.procesy.dto.ProcessoDTO;
 import com.procesy.procesy.exception.AccessDeniedException;
@@ -8,6 +9,7 @@ import com.procesy.procesy.model.Advogado;
 import com.procesy.procesy.model.Cliente;
 import com.procesy.procesy.model.Processo;
 import com.procesy.procesy.model.documentos.DocumentoProcesso;
+import com.procesy.procesy.repository.AdvogadoRepository;
 import com.procesy.procesy.repository.ProcessoRepository;
 import com.procesy.procesy.service.advogado.AdvogadoService;
 import com.procesy.procesy.service.cliente.ClienteService;
@@ -21,6 +23,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static org.hibernate.sql.ast.SqlTreeCreationLogger.LOGGER;
 
 /**
  * Serviço para gerenciar operações relacionadas a Processos.
@@ -36,6 +40,15 @@ public class ProcessoService {
 
     @Autowired
     private AdvogadoService advogadoService;
+
+    @Autowired
+    private OpenAIAssistantService openAIAssistantService;
+
+    @Autowired
+    private AdvogadoRepository advogadoRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     /**
      * Retorna todos os Processos associados a um Advogado específico.
@@ -130,7 +143,62 @@ public class ProcessoService {
 
         Processo processoSalvo = processoRepository.save(processo);
 
+        // Após persistência bem sucedida, gerar os arquivos de status
+        gerarArquivosStatus(advogadoId, clienteId);
+
         return convertToDTO(processoSalvo);
+    }
+    private void gerarArquivosStatus(Long advogadoId, UUID clienteId) {
+        try {
+            // 1. Obter dados necessários
+            Advogado advogado = advogadoRepository.findById(advogadoId)
+                    .orElseThrow(() -> new RuntimeException("Advogado não encontrado"));
+            LOGGER.info("Advogado encontrado: " + advogado.getNome());
+            // 2. Gerar arquivo global
+            List<ProcessoDTO> todosProcessos = getProcessosByAdvogadoId(advogadoId);
+            LOGGER.info("Total de processos encontrados: " + todosProcessos.size());
+            String jsonAdmin = objectMapper.writeValueAsString(todosProcessos);
+            LOGGER.error("----------------------------------------------------------------------");
+            //estrutura do json
+            System.out.println("JSON Admin: " + jsonAdmin);
+            LOGGER.error("----------------------------------------------------------------------");
+            try {
+                openAIAssistantService.uploadFileToVectorStore(
+                        "admin_processos.json",
+                        jsonAdmin.getBytes(),
+                        openAIAssistantService.getOrCreateVectorStore(advogado.getNome())
+                );
+            } catch (Exception e) {
+                LOGGER.error("Erro ao fazer upload do arquivo para o vector store: " + e.getMessage());
+            }
+            LOGGER.error("----------------------------------------------------------------------");
+            LOGGER.info("Arquivo admin_processos.json gerado com sucesso.");
+            LOGGER.error("----------------------------------------------------------------------");
+
+            // 3. Gerar arquivo do cliente
+            List<ProcessoDTO> processosCliente = todosProcessos.stream()
+                    .filter(p -> p.getCliente().getId().equals(clienteId))
+                    .collect(Collectors.toList());
+            LOGGER.error("----------------------------------------------------------------------");
+            LOGGER.info("Total de processos do cliente encontrados: " + processosCliente.size());
+            LOGGER.error("----------------------------------------------------------------------");
+
+            String jsonCliente = objectMapper.writeValueAsString(processosCliente);
+            //estrutura do json
+            LOGGER.error("----------------------------------------------------------------------");
+            System.out.println("JSON Cliente: " + jsonCliente);
+            LOGGER.error("----------------------------------------------------------------------");
+            String nomeArquivoCliente = clienteId + "_processos.json";
+
+            openAIAssistantService.uploadFileToVectorStore(
+                    nomeArquivoCliente,
+                    jsonCliente.getBytes(),
+                    openAIAssistantService.getOrCreateVectorStore(advogado.getNome())
+            );
+
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao gerar arquivos de status: " + e.getMessage(), e);
+        }
     }
 
     /**

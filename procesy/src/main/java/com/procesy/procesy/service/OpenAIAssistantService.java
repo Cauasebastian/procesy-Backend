@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -332,6 +334,7 @@ public class OpenAIAssistantService {
 
             HttpEntity<MultiValueMap<String, Object>> fileEntity = new HttpEntity<>(fileBody, fileHeaders);
 
+            // Executa o upload inicial
             ResponseEntity<Map> fileResponse = restTemplate.exchange(
                     BASE_URL + "/files",
                     HttpMethod.POST,
@@ -344,6 +347,7 @@ public class OpenAIAssistantService {
             }
 
             String fileId = (String) fileResponse.getBody().get("id");
+            System.out.println("Arquivo enviado. ID: " + fileId);
 
             // 2. Associar ao Vector Store
             HttpHeaders jsonHeaders = new HttpHeaders();
@@ -359,15 +363,46 @@ public class OpenAIAssistantService {
                     associationEntity,
                     Map.class
             );
-            System.out.println("ASSOCIATION RESPONSE: " + associationResponse.getBody());
+            System.out.println("Associação ao vector store " + vectorStoreId + " bem-sucedida.");
 
-            if (associationResponse.getStatusCode() != HttpStatus.OK) {
-                throw new RuntimeException("Falha na associação ao Vector Store: " + associationResponse.getStatusCode());
+            // 3. Verificar status até estar "completed"
+            int attempts = 0;
+            while (attempts < 30) { // Timeout de 30 segundos
+                try {
+                    ResponseEntity<Map> statusResponse = restTemplate.exchange(
+                            BASE_URL + "/vector_stores/" + vectorStoreId + "/files/" + fileId,
+                            HttpMethod.GET,
+                            new HttpEntity<>(getHeaders()),
+                            Map.class
+                    );
+
+                    String status = (String) statusResponse.getBody().get("status");
+                    System.out.println("Status do arquivo " + fileId + ": " + status);
+
+                    if ("completed".equals(status)) {
+                        System.out.println("Arquivo pronto para uso!");
+                        return fileId;
+                    }
+
+                    Thread.sleep(1000); // Aguarda 1 segundo entre as verificações
+                    attempts++;
+
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Processo interrompido durante a verificação de status", e);
+                }
             }
 
-            return fileId;
+            throw new RuntimeException("Timeout: Arquivo não processado após 30 segundos.");
+
         } catch (Exception e) {
-            throw new RuntimeException("Erro completo no upload: " + e.getMessage(), e);
+            System.err.println("Erro crítico durante o upload:");
+            e.printStackTrace();
+            throw new RuntimeException("Falha completa no upload: " + e.getMessage(), e);
         }
+    }
+    // OpenAIAssistantService.java
+    public String uploadJsonToVectorStore(String fileName, String jsonContent, String vectorStoreId) {
+        return uploadFileToVectorStore(fileName, jsonContent.getBytes(StandardCharsets.UTF_8), vectorStoreId);
     }
 }
