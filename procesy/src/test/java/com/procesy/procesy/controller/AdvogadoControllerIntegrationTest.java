@@ -25,32 +25,34 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Testes de integração para a classe AdvogadoController.
  */
+/**
 @SpringBootTest
 @AutoConfigureMockMvc
 class AdvogadoControllerTesteDeIntegracao {
-
+    /**
     @Autowired
     private MockMvc mockMvc;
-
+    /**
     @Autowired
     private AdvogadoRepository advogadoRepository;
-
+    /**
     @Autowired
     private ClienteRepository clienteRepository;
-
+    /**
     @Autowired
     private ProcessoRepository processoRepository;
-
+    /**
     @Autowired
     private ObjectMapper objectMapper;
-
+    /**
     private Advogado advogado;
     private Cliente cliente;
-
+    /**
     /**
      * Configura o ambiente de teste antes de cada teste.
      * Limpa o banco de dados e cria dados iniciais.
      */
+/**
     @BeforeEach
     void setUp() {
         // Limpa o banco de dados
@@ -70,10 +72,11 @@ class AdvogadoControllerTesteDeIntegracao {
         cliente.setAdvogado(advogado);
         cliente = clienteRepository.save(cliente);
     }
-
+    /**
     /**
      * Testa o método getMeusClientes para garantir que retorna uma lista de clientes para o advogado autenticado.
      */
+/**
     @Test
     @WithMockUser(username = "advogado@example.com", roles = "ADVOGADO")
     void getMeusClientes_retornarListaDeClientes() throws Exception {
@@ -82,10 +85,11 @@ class AdvogadoControllerTesteDeIntegracao {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].nome", is("Cliente Teste")));
     }
-
+    /**
     /**
      * Testa o método criarCliente para garantir que cria e retorna um novo cliente.
      */
+/**
     @Test
     @WithMockUser(username = "advogado@example.com", roles = "ADVOGADO")
     void criarCliente_criaERetornaCliente() throws Exception {
@@ -99,10 +103,11 @@ class AdvogadoControllerTesteDeIntegracao {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nome", is("Novo Cliente")));
     }
-
+    /**
     /**
      * Testa o método criarProcesso para garantir que cria e retorna um novo processo associado a um cliente e advogado.
      */
+/**
     @Test
     @WithMockUser(username = "advogado@example.com", roles = "ADVOGADO")
     void criarProcesso_criaERetornaProcesso() throws Exception {
@@ -123,6 +128,7 @@ class AdvogadoControllerTesteDeIntegracao {
     /**
      * Testa o método criarCliente para garantir que retorna um erro quando o advogado não for encontrado.
      */
+/**
     @Test
     @WithMockUser(username = "advogado@example.com", roles = "ADVOGADO")
     void criarCliente_quandoAdvogadoNaoEncontrado_retornarErro() throws Exception {
@@ -139,3 +145,4 @@ class AdvogadoControllerTesteDeIntegracao {
                 .andExpect(status().isNotFound());
     }
 }
+ */

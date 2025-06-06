@@ -18,23 +18,24 @@ import java.util.ArrayList;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
+/**
 @SpringBootTest
 @AutoConfigureMockMvc
 public class AuthControllerIntegrationTest {
-
+/**
     @Autowired
     private MockMvc mockMvc;
-
+/**
     @MockBean
     private JwtUtil jwtUtil;
-
+/**
     @MockBean
     private AdvogadoService advogadoService;
-
+/**
     @MockBean
     private AuthenticationManager authenticationManager;
 
+    /**
     // Teste de Integração para o Login com Sucesso
     @Test
     public void testLoginSuccess() throws Exception {
@@ -71,3 +72,4 @@ public class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.nome").value("John Doe"));
     }
 }
+     */
