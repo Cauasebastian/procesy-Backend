@@ -238,15 +238,28 @@ public class ProcessoService {
             throw new AccessDeniedException("Acesso negado: Processo não pertence ao Advogado");
         }
 
-        // Atualiza os campos necessários
-        processo.setNumeroProcesso(processoDTOAtualizado.getNumeroProcesso());
-        processo.setDataInicio(parseDate(processoDTOAtualizado.getDataInicio()));
-        processo.setDataAtualizacao(parseDate(processoDTOAtualizado.getDataAtualizacao()));
-        processo.setTipoProcesso(processoDTOAtualizado.getTipoProcesso());
-        processo.setStatus(processoDTOAtualizado.getStatus());
-        processo.setTipoAtendimento(processoDTOAtualizado.getTipoAtendimento());
+        // Atualiza os campos necessários (somente se não forem nulos)
+        if (processoDTOAtualizado.getNumeroProcesso() != null) {
+            processo.setNumeroProcesso(processoDTOAtualizado.getNumeroProcesso());
+        }
+        if (processoDTOAtualizado.getTipoProcesso() != null) {
+            processo.setTipoProcesso(processoDTOAtualizado.getTipoProcesso());
+        }
+        if (processoDTOAtualizado.getTipoAtendimento() != null) {
+            processo.setTipoAtendimento(processoDTOAtualizado.getTipoAtendimento());
+        }
+        if (processoDTOAtualizado.getDataInicio() != null) {
+            processo.setDataInicio(parseDate(processoDTOAtualizado.getDataInicio()));
+        }
 
-        // Atualiza os status dos documentos
+        // A data de atualização será sempre atualizada para a data atual
+        processo.setDataAtualizacao(Date.from(Instant.now()));  // Atualiza a data de atualização para o momento atual
+
+        if (processoDTOAtualizado.getStatus() != null) {
+            processo.setStatus(processoDTOAtualizado.getStatus());
+        }
+
+        // Atualiza os status dos documentos apenas se não forem nulos
         DocumentoProcesso documentoProcesso = processo.getDocumentoProcesso();
         if (documentoProcesso == null) {
             documentoProcesso = new DocumentoProcesso();
@@ -254,15 +267,25 @@ public class ProcessoService {
             processo.setDocumentoProcesso(documentoProcesso);
         }
 
-        documentoProcesso.setStatusContrato(processoDTOAtualizado.getStatusContrato());
-        documentoProcesso.setStatusProcuracoes(processoDTOAtualizado.getStatusProcuracoes());
-        documentoProcesso.setStatusPeticoesIniciais(processoDTOAtualizado.getStatusPeticoesIniciais());
-        documentoProcesso.setStatusDocumentosComplementares(processoDTOAtualizado.getStatusDocumentosComplementares());
+        if (processoDTOAtualizado.getStatusContrato() != null) {
+            documentoProcesso.setStatusContrato(processoDTOAtualizado.getStatusContrato());
+        }
+        if (processoDTOAtualizado.getStatusProcuracoes() != null) {
+            documentoProcesso.setStatusProcuracoes(processoDTOAtualizado.getStatusProcuracoes());
+        }
+        if (processoDTOAtualizado.getStatusPeticoesIniciais() != null) {
+            documentoProcesso.setStatusPeticoesIniciais(processoDTOAtualizado.getStatusPeticoesIniciais());
+        }
+        if (processoDTOAtualizado.getStatusDocumentosComplementares() != null) {
+            documentoProcesso.setStatusDocumentosComplementares(processoDTOAtualizado.getStatusDocumentosComplementares());
+        }
 
+        // Salva as alterações no banco de dados
         Processo processoAtualizado = processoRepository.save(processo);
 
         return convertToDTO(processoAtualizado);
     }
+
 
     /**
      * Deleta um Processo existente, garantindo que ele pertença ao Advogado.
