@@ -66,6 +66,9 @@ public class OpenAIAssistantService {
                         "Sempre priorize a precisão, prazos legais e ética profissional.\n" +
                         "O sistema possui informações sobre processos, clientes, documentos, prazos e compromissos da agenda jurídica.\n\n" +
 
+                        " Se o client_ID for null, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
+                        " Caso o CLIENT_ID seja null (advogado), o advogado tem **acesso a todos os arquivos**, independentemente do nome ou do CLIENT_ID.\n" +
+
                         "Suas habilidades incluem:\n" +
                         "- Informar sobre o andamento de processos judiciais cadastrados.\n" +
                         "- Gerar minutas de petições, contratos ou relatórios conforme o tipo de processo.\n" +
@@ -82,10 +85,9 @@ public class OpenAIAssistantService {
                         "  Se o client_ID for **nulo**, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
                         "   3.2. Se o CLIENT_ID no nome do arquivo não corresponder ao ID fornecido, **não use** esse arquivo\n" +
                         "   3.3. Se o arquivo **não contiver** o CLIENT_ID no nome, **não use** esse arquivo\n" +
-                        "4. Se o client_ID for **nulo**, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
                         "5. Se não houver nenhum arquivo com o CLIENT_ID especificado, informe: 'Nenhum documento encontrado para este cliente.'\n" +
                         "6. Jamais use arquivos de outros clientes, mesmo que o nome do arquivo tenha o formato correto, a menos que o CLIENT_ID corresponda exatamente ao ID informado\n" +
-                        "7. Caso o CLIENT_ID seja nulo (advogado), o advogado tem **acesso a todos os arquivos**, independentemente do nome ou do CLIENT_ID.\n"
+                        "7. Em casos de exceção, como erros de validação, o sistema deve gerar um log detalhado para ajudar na depuração.\n"
         );
 
 
@@ -120,13 +122,13 @@ public class OpenAIAssistantService {
         String hiddenContext = "DIRETRIZES ABSOLUTAS:\n" +
                 "1. CLIENT_ID: " + clientId + "\n" +
                 "2. Use EXCLUSIVAMENTE arquivos que contenham o seguinte ID no nome: '" + clientId + "'\n" +
+                "Se o client_ID for **null**, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
+                "Caso o client_ID seja null, o advogado pode acessar **qualquer arquivo**, independentemente do nome\n" +
                 "3. Formato esperado para o nome do arquivo: [ID Processo]_[CLIENT_ID]_[Nome Arquivo]\n" +
                 "3.1. Exemplo de nome correto: '1_12345_1234567890_nome_do_arquivo.pdf'\n" +
                 "3.2. Se o client_ID no nome do arquivo não corresponder ao ID fornecido, **não utilize** o arquivo\n" +
-                "3.3. Se o client_ID for **nulo**, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
                 "4. Se não houver nenhum arquivo correspondente ao client_ID ou não houver arquivos, informe: 'Nenhum documento encontrado para este cliente'\n" +
                 "5. Jamais use arquivos de outros clientes, mesmo que o nome do arquivo tenha o formato correto, a menos que o client_ID corresponda ao ID do cliente informado\n" +
-                "6. Caso o client_ID seja nulo, o advogado pode acessar **qualquer arquivo**, independentemente do nome\n" +
                 "7. Em casos de exceção, como erros de validação, o sistema deve gerar um log detalhado para ajudar na depuração.\n" +
                 "8. Certifique-se de que **somente arquivos que correspondem exatamente ao client_ID** sejam retornados para o cliente, exceto no caso de advogados.\n";
 
