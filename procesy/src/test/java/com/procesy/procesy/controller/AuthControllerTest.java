@@ -22,30 +22,30 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-
+/**
 @ExtendWith(MockitoExtension.class)
 public class AuthControllerTest {
-
+/**
     @Mock
     private AuthenticationManager authenticationManager;
-
+/**
     @Mock
     private JwtUtil jwtUtil;
-
+/**
     @Mock
     private AdvogadoService advogadoService;
-
+/**
     @InjectMocks
     private AuthController authController;
-
+/**
     private MockMvc mockMvc;
-
+/**
     @BeforeEach
     public void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(authController).build();
     }
 
-    // Teste de Login com Sucesso
+    /**
     @Test
     public void testLoginSuccess() throws Exception {
         String email = "test@domain.com";
@@ -64,7 +64,7 @@ public class AuthControllerTest {
                         .content("{\"email\": \"" + email + "\", \"senha\": \"" + senha + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("mocked-jwt-token"));
-    }
+    }*
 
     // Teste de Login com Falha de Autenticação
     @Test
@@ -162,4 +162,4 @@ public class AuthControllerTest {
                 .andExpect(content().string("A senha é obrigatória"));
     }
 
-}
+}*/

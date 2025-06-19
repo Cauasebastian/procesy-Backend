@@ -1,6 +1,7 @@
 package com.procesy.procesy.service;
 
 // package com.procesy.procesy.service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -8,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -15,7 +18,10 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class OpenAIAssistantService {
 
-    private static final String API_KEY = "";
+    // Chave de API e URL base do OpenAI por meio da OPENAI_API_KEY
+    @Value("${openai.api.key}")
+    private String API_KEY;
+
     private static final String BASE_URL = "https://api.openai.com/v1";
     // Remova o ASSISTANT_ID fixo, pois cada advogado terá o seu
 
@@ -60,6 +66,9 @@ public class OpenAIAssistantService {
                         "Sempre priorize a precisão, prazos legais e ética profissional.\n" +
                         "O sistema possui informações sobre processos, clientes, documentos, prazos e compromissos da agenda jurídica.\n\n" +
 
+                        " Se o client_ID for null, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
+                        " Caso o CLIENT_ID seja null (advogado), o advogado tem **acesso a todos os arquivos**, independentemente do nome ou do CLIENT_ID.\n" +
+
                         "Suas habilidades incluem:\n" +
                         "- Informar sobre o andamento de processos judiciais cadastrados.\n" +
                         "- Gerar minutas de petições, contratos ou relatórios conforme o tipo de processo.\n" +
@@ -71,13 +80,14 @@ public class OpenAIAssistantService {
                         "- Nunca ofereça aconselhamento jurídico pessoal — apenas informações e sugestões gerais com base nos dados fornecidos.\n" +
                         "- Quando não tiver certeza de algo, sugira ao usuário consultar um especialista ou verificar fontes oficiais.\n\n" +
 
-                        "DIRETRIZES ABSOLUTAS:\n" +
-                        "3. Formato dos arquivos esperado: [ID Processo]_[CLIENT_ID]_[Nome Arquivo]\n" +
-                        "   3.1. Exemplo: '1_12345_1234567890_nome_do_arquivo.pdf'\n" +
-                        "   3.2. Se o CLIENT_ID e o nome do arquivo forem diferentes, não use\n" +
-                        "   3.3. Se o arquivo não tiver o ID do cliente, não use\n" +
-                        "4. Se não houver correspondência e não houver nenhum arquivo com esse ID, informe: 'Nenhum documento encontrado para este cliente.'\n" +
-                        "5. Jamais use arquivos que não sejam do cliente associado a este advogado.\n"
+                        "3. Formato esperado para os arquivos: [ID Processo]_[CLIENT_ID]_[Nome Arquivo]\n" +
+                        "   3.1. Exemplo de nome correto: '1_12345_1234567890_nome_do_arquivo.pdf'\n" +
+                        "  Se o client_ID for **nulo**, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
+                        "   3.2. Se o CLIENT_ID no nome do arquivo não corresponder ao ID fornecido, **não use** esse arquivo\n" +
+                        "   3.3. Se o arquivo **não contiver** o CLIENT_ID no nome, **não use** esse arquivo\n" +
+                        "5. Se não houver nenhum arquivo com o CLIENT_ID especificado, informe: 'Nenhum documento encontrado para este cliente.'\n" +
+                        "6. Jamais use arquivos de outros clientes, mesmo que o nome do arquivo tenha o formato correto, a menos que o CLIENT_ID corresponda exatamente ao ID informado\n" +
+                        "7. Em casos de exceção, como erros de validação, o sistema deve gerar um log detalhado para ajudar na depuração.\n"
         );
 
 
@@ -107,17 +117,22 @@ public class OpenAIAssistantService {
         // 1 - Obter ou criar thread do cache
         String threadId = getOrCreateThreadId(assistantId);
 
+
         // Adicione contexto invisível ao usuário
         String hiddenContext = "DIRETRIZES ABSOLUTAS:\n" +
                 "1. CLIENT_ID: " + clientId + "\n" +
-                "2. Use EXCLUSIVAMENTE arquivos que contenham esse ID: '" + clientId + "' no nome\n" +
-                "3. Formato esperado: [ID Processo]_[CLIENT_ID]_[Nome Arquivo]\n" +
-                "3.1. Exemplo: '1_12345_1234567890_nome_do_arquivo.pdf'\n" +
-                // se o client_ID e o nome do arquivo forem diferentes, não use
-                "3.2 se o client_ID e o nome do arquivo forem diferentes, não use\n" +
-                "3.3. Se o arquivo não tiver o ID do cliente, não use\n" +
-                "4. Se não houver correspondência, e nao tiver nenhum arquivo com esse informe: 'Nenhum documento encontrado para este cliente'" +
-                "\n5. Jamais use arquivos que não sejam do cliente associado a este advogado\n";
+                "2. Use EXCLUSIVAMENTE arquivos que contenham o seguinte ID no nome: '" + clientId + "'\n" +
+                "Se o client_ID for **null**, isso indica que o usuário é um advogado e ele **tem acesso a todos os arquivos**, sem considerar o nome do arquivo\n" +
+                "Caso o client_ID seja null, o advogado pode acessar **qualquer arquivo**, independentemente do nome\n" +
+                "3. Formato esperado para o nome do arquivo: [ID Processo]_[CLIENT_ID]_[Nome Arquivo]\n" +
+                "3.1. Exemplo de nome correto: '1_12345_1234567890_nome_do_arquivo.pdf'\n" +
+                "3.2. Se o client_ID no nome do arquivo não corresponder ao ID fornecido, **não utilize** o arquivo\n" +
+                "4. Se não houver nenhum arquivo correspondente ao client_ID ou não houver arquivos, informe: 'Nenhum documento encontrado para este cliente'\n" +
+                "5. Jamais use arquivos de outros clientes, mesmo que o nome do arquivo tenha o formato correto, a menos que o client_ID corresponda ao ID do cliente informado\n" +
+                "7. Em casos de exceção, como erros de validação, o sistema deve gerar um log detalhado para ajudar na depuração.\n" +
+                "8. Certifique-se de que **somente arquivos que correspondem exatamente ao client_ID** sejam retornados para o cliente, exceto no caso de advogados.\n";
+
+
 
         Map<String, Object> messageBody = Map.of(
                 "role", "user",
@@ -332,6 +347,7 @@ public class OpenAIAssistantService {
 
             HttpEntity<MultiValueMap<String, Object>> fileEntity = new HttpEntity<>(fileBody, fileHeaders);
 
+            // Executa o upload inicial
             ResponseEntity<Map> fileResponse = restTemplate.exchange(
                     BASE_URL + "/files",
                     HttpMethod.POST,
@@ -344,6 +360,7 @@ public class OpenAIAssistantService {
             }
 
             String fileId = (String) fileResponse.getBody().get("id");
+            System.out.println("Arquivo enviado. ID: " + fileId);
 
             // 2. Associar ao Vector Store
             HttpHeaders jsonHeaders = new HttpHeaders();
@@ -359,15 +376,46 @@ public class OpenAIAssistantService {
                     associationEntity,
                     Map.class
             );
-            System.out.println("ASSOCIATION RESPONSE: " + associationResponse.getBody());
+            System.out.println("Associação ao vector store " + vectorStoreId + " bem-sucedida.");
 
-            if (associationResponse.getStatusCode() != HttpStatus.OK) {
-                throw new RuntimeException("Falha na associação ao Vector Store: " + associationResponse.getStatusCode());
+            // 3. Verificar status até estar "completed"
+            int attempts = 0;
+            while (attempts < 30) { // Timeout de 30 segundos
+                try {
+                    ResponseEntity<Map> statusResponse = restTemplate.exchange(
+                            BASE_URL + "/vector_stores/" + vectorStoreId + "/files/" + fileId,
+                            HttpMethod.GET,
+                            new HttpEntity<>(getHeaders()),
+                            Map.class
+                    );
+
+                    String status = (String) statusResponse.getBody().get("status");
+                    System.out.println("Status do arquivo " + fileId + ": " + status);
+
+                    if ("completed".equals(status)) {
+                        System.out.println("Arquivo pronto para uso!");
+                        return fileId;
+                    }
+
+                    Thread.sleep(1000); // Aguarda 1 segundo entre as verificações
+                    attempts++;
+
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Processo interrompido durante a verificação de status", e);
+                }
             }
 
-            return fileId;
+            throw new RuntimeException("Timeout: Arquivo não processado após 30 segundos.");
+
         } catch (Exception e) {
-            throw new RuntimeException("Erro completo no upload: " + e.getMessage(), e);
+            System.err.println("Erro crítico durante o upload:");
+            e.printStackTrace();
+            throw new RuntimeException("Falha completa no upload: " + e.getMessage(), e);
         }
+    }
+    // OpenAIAssistantService.java
+    public String uploadJsonToVectorStore(String fileName, String jsonContent, String vectorStoreId) {
+        return uploadFileToVectorStore(fileName, jsonContent.getBytes(StandardCharsets.UTF_8), vectorStoreId);
     }
 }
